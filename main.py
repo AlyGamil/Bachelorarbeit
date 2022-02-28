@@ -82,13 +82,48 @@ def sub_graph_matches():
     for i in configuration_nodes:
         similar_nodes.update({i.name: []})
 
-    for confi_node in configuration_nodes:
-        for topo_node in topology_nodes:
-
+    for topo_node in topology_nodes:
+        for confi_node in configuration_nodes:
             if set(confi_node.terminals) <= set(topo_node.terminals):
                 similar_nodes[confi_node.name].append(topo_node)
 
     return similar_nodes
+
+
+# todo create sub-topology and check it can be built from the same configuration
+# todo sub-topology could be created from the extracted matches
+def compare(s, t):
+    t = list(t)  # make a mutable copy
+    try:
+        for elem in s:
+            t.remove(elem)
+    except ValueError:
+        return False
+    return not t
+
+
+def sub_graph():
+    topology_nodes = TopologyNode.nodes.copy()
+    configuration_nodes = ConfigurationNode.nodes.copy()
+    test = []
+    similar_nodes = {}
+    for i in configuration_nodes:
+        similar_nodes.update({i.name: []})
+
+    x = []
+    y = []
+    for topo_node in topology_nodes:
+        for confi_node in configuration_nodes:
+            if set(confi_node.terminals) <= set(topo_node.terminals):
+                x.append(topo_node)
+                y.append(confi_node)
+                configuration_nodes.remove(confi_node)
+                continue
+
+            # if all(True for i in configuration_nodes if i in y):
+            #     print(x)
+            #     x = []
+            #     y = []
 
 
 netlist_to_oop(topo, True)
@@ -97,16 +132,4 @@ netlist_to_oop(topo, True)
 # pprint.pprint(sub_graph_matches())
 
 netlist_to_oop(chopper2, False)
-pprint.pprint(sub_graph_matches())
-
-
-# todo create sub-topology and check it can be built from the same configuration
-# todo sub-topology could be created from the extracted matches
-
-def sub_topology():
-    matches = sub_graph_matches()
-    configuration_nodes = ConfigurationNode.nodes.copy()
-    print(len(matches))
-    print(len(configuration_nodes))
-
-# sub_topology()
+sub_graph()

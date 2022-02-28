@@ -1,14 +1,5 @@
-thisdict = {
-    "brand": "Ford",
-    "model": "Mustang",
-    "year": 1964
-}
+a = [1, 2, 3, 4, 5]
+b = [9, 8, 7, 6, 5]
 
-confi_nodes = ["n3", "n1", "n2"]
-
-for i in confi_nodes:
-    thisdict.update({i: []})
-
-thisdict["n1"].append(1)
-thisdict["n1"].append(2)
-print(thisdict)
+x = [i for i, j in zip(a, b) if i == j]
+print(x)
