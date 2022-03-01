@@ -2,7 +2,6 @@ import pprint
 
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
-from Element import Element
 from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
@@ -23,9 +22,9 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
 
 variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 6 v;'
 variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
-# topo = 'igbt1 1 2 u; diode1 u 1; igbt5 v 6 0; diode5 0 v; diode6 0 w'
+test_topo = 'igbt1 1 2 u; diode1 u 1; igbt5 v 6 0; diode5 0 v; diode6 0 w'
 topo = variant4
-configuration1 = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
+igbt_co_pack = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
 chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
 
@@ -98,7 +97,7 @@ def sub_graph_matches():
 
 
 netlist_to_oop(topo, True)
-netlist_to_oop(chopper2, False)
+netlist_to_oop(igbt_co_pack, False)
 
 
 #  variant 1
@@ -129,7 +128,20 @@ def get_next_node(node: Node):
 approved = []
 
 
+def save_temporary_nodes(node1, node2):
+    x = set()
+    x.add(node1)
+    x.add(node2)
+    if x not in approved:
+        approved.append(x)
+
+
+visited_nodes = []
+
+
 def dfs_match(confi_node, topo_node, visited):  # depth first Search
+    global approved
+    y = approved
     tested = set()
     tested.add(confi_node)
     tested.add(topo_node)
@@ -137,28 +149,22 @@ def dfs_match(confi_node, topo_node, visited):  # depth first Search
     topo_connections = get_next_node(topo_node)
     if tested not in visited:
         visited.append(tested)
+
         for confi_connection in confi_connections:
             for topo_connection in topo_connections:
-                if set(confi_node.terminals) <= set(topo_node.terminals):
+                if set(confi_connection.terminals) <= set(topo_connection.terminals):
                     dfs_match(confi_connection, topo_connection, visited)
-                    x = set()
-                    x.add(confi_node)
-                    x.add(topo_node)
-                    if x not in approved:
-                        approved.append(x)
-
-
-tested_nodes = []
+                    save_temporary_nodes(confi_node, topo_node)
 
 
 def matches():
     for confi_node in ConfigurationNode.nodes:
         for topo_node in TopologyNode.nodes:
+
             if set(confi_node.terminals) <= set(topo_node.terminals):
-                dfs_match(confi_node, topo_node, tested_nodes)
+                save_temporary_nodes(confi_node, topo_node)
+                dfs_match(confi_node, topo_node, visited_nodes)
 
 
 matches()
-pprint.pprint(approved)
-# print(sub_graph_matches())
-# todo try a double list
+print(approved)
