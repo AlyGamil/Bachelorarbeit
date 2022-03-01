@@ -3,10 +3,10 @@ from Types import Types
 
 class Element:
 
-    def __init__(self, name: str, nodes: list):
+    def __init__(self, name: str, connections: list):
         self.typ = None
         self.name = name
-        self.nodes = nodes
+        self.connections = connections
         self.get_element_type()
 
     def get_element_type(self):

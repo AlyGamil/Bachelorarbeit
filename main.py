@@ -2,6 +2,8 @@ import pprint
 
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
+from Element import Element
+from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
 from Types import Types
@@ -92,44 +94,65 @@ def sub_graph_matches():
 
 # todo create sub-topology and check it can be built from the same configuration
 # todo sub-topology could be created from the extracted matches
-def compare(s, t):
-    t = list(t)  # make a mutable copy
-    try:
-        for elem in s:
-            t.remove(elem)
-    except ValueError:
-        return False
-    return not t
-
-
-def sub_graph():
-    topology_nodes = TopologyNode.nodes.copy()
-    configuration_nodes = ConfigurationNode.nodes.copy()
-    test = []
-    similar_nodes = {}
-    for i in configuration_nodes:
-        similar_nodes.update({i.name: []})
-
-    x = []
-    y = []
-    for topo_node in topology_nodes:
-        for confi_node in configuration_nodes:
-            if set(confi_node.terminals) <= set(topo_node.terminals):
-                x.append(topo_node)
-                y.append(confi_node)
-                configuration_nodes.remove(confi_node)
-                continue
-
-            # if all(True for i in configuration_nodes if i in y):
-            #     print(x)
-            #     x = []
-            #     y = []
 
 
 netlist_to_oop(topo, True)
-
-# netlist_to_oop(configuration1, False)
-# pprint.pprint(sub_graph_matches())
-
 netlist_to_oop(chopper2, False)
-sub_graph()
+
+
+# [1, igbt1, 2, 3, diode1, igbt2, 4, v, diode2, igbt3, 5, 6, diode4, igbt4, 7, 0, diode4, diode6, u, diode5]
+# [n3, diode1, n1, igbt, n2, diode2, n0]
+def dfs(node, visited):  # depth First Search
+    if node not in visited:
+        visited.append(node)
+        for connection in node.connections:
+            dfs(connection, visited)
+
+
+v = []
+
+
+def get_next_node(node: Node):
+    next_nodes = set()
+    for c in node.connections:
+        next_nodes.update(c.connections)
+
+    return next_nodes
+
+
+approved = []
+
+
+def dfs_match(confi_node, topo_node, visited):  # depth first Search
+    tested = set()
+    tested.add(confi_node)
+    tested.add(topo_node)
+    confi_connections = get_next_node(confi_node)
+    topo_connections = get_next_node(topo_node)
+    if tested not in visited:
+        visited.append(tested)
+        for confi_connection in confi_connections:
+            for topo_connection in topo_connections:
+                if set(confi_node.terminals) <= set(topo_node.terminals):
+                    dfs_match(confi_connection, topo_connection, visited)
+                    x = set()
+                    x.add(confi_node)
+                    x.add(topo_node)
+                    if x not in approved:
+                        approved.append(x)
+
+
+tested_nodes = []
+
+
+def matches():
+    for confi_node in ConfigurationNode.nodes:
+        for topo_node in TopologyNode.nodes:
+            if set(confi_node.terminals) <= set(topo_node.terminals):
+                dfs_match(confi_node, topo_node, tested_nodes)
+
+
+matches()
+pprint.pprint(approved)
+print(sub_graph_matches())
+# todo try a double list

@@ -19,12 +19,12 @@ def step22():
                 for i in igbt_list:
 
                     # check if the diode and the igbt parallel to each other
-                    if all(n in i.nodes for n in d.nodes):
+                    if all(n in i.connections for n in d.connections):
 
                         # check if the IGBT Emitter connected to the diode anode
                         # the IGBT Collector connected to the diode cathode
                         # True? -> this is a co-pack
-                        if d.nodes[0] == i.nodes[-1] and d.nodes[-1] == i.nodes[0]:
+                        if d.connections[0] == i.connections[-1] and d.connections[-1] == i.connections[0]:
                             print('the diode: ' + d.name +
                                   ' and the IGBT: ' +
                                   i.name + ' build a co-pack')

@@ -8,9 +8,7 @@ class TopologyNode(Node):
 
     def __init__(self, name):
         super().__init__(name)
-        self.connections = []
-        self.terminals = []
-        self.nodes.append(self)
+        TopologyNode.nodes.append(self)
 
     def add_connection(self, element: Element, terminal: Types):
         self.connections.append(element)
