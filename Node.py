@@ -7,7 +7,6 @@ class Node:
         self.name = name
         self.connections = []
         self.terminals = []
-        self.parent = None
 
     def __repr__(self):
         return self.name

@@ -22,8 +22,9 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
            'diode5 u 3;diode6 6 u;'
 
 variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 6 v;'
+variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
 # topo = 'igbt1 1 2 u; diode1 u 1; igbt5 v 6 0; diode5 0 v; diode6 0 w'
-topo = variant1
+topo = variant4
 configuration1 = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
 chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
@@ -100,7 +101,11 @@ netlist_to_oop(topo, True)
 netlist_to_oop(chopper2, False)
 
 
+#  variant 1
 # [1, igbt1, 2, 3, diode1, igbt2, 4, v, diode2, igbt3, 5, 6, diode4, igbt4, 7, 0, diode4, diode6, u, diode5]
+# [n3, diode1, n1, igbt, n2, diode2, n0]
+# variant 4
+# [1, igbt1, 2, 3, diode1, igbt2, 4, 0, diode2, diode3, 5]
 # [n3, diode1, n1, igbt, n2, diode2, n0]
 def dfs(node, visited):  # depth First Search
     if node not in visited:
@@ -115,8 +120,9 @@ v = []
 def get_next_node(node: Node):
     next_nodes = set()
     for c in node.connections:
-        next_nodes.update(c.connections)
-
+        connections = c.connections.copy()
+        connections.remove(node)
+        next_nodes.update(connections)
     return next_nodes
 
 
@@ -154,5 +160,5 @@ def matches():
 
 matches()
 pprint.pprint(approved)
-print(sub_graph_matches())
+# print(sub_graph_matches())
 # todo try a double list
