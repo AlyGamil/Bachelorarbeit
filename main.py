@@ -2,6 +2,7 @@ import pprint
 
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
+from Element import Element
 from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
@@ -27,6 +28,7 @@ topo = variant4
 igbt_co_pack = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
 chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
+configuration = chopper2
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -97,7 +99,7 @@ def sub_graph_matches():
 
 
 netlist_to_oop(topo, True)
-netlist_to_oop(igbt_co_pack, False)
+netlist_to_oop(configuration, False)
 
 
 #  variant 1
@@ -111,9 +113,7 @@ def dfs(node, visited):  # depth First Search
         visited.append(node)
         for connection in node.connections:
             dfs(connection, visited)
-
-
-v = []
+    return visited
 
 
 def get_next_node(node: Node):
@@ -122,26 +122,42 @@ def get_next_node(node: Node):
         connections = c.connections.copy()
         connections.remove(node)
         next_nodes.update(connections)
-    return next_nodes
+    return list(next_nodes)
 
 
+x = []
+v = []
+
+
+def dfs_preparer(start, destination):  # depth First Search
+    global v
+    global x
+    if start == destination:
+        x = v
+        v = []
+        return x
+    else:
+        connections = get_next_node(start)
+        v.append(start)
+        for connection in connections:
+            dfs_preparer(connection, destination)
+
+
+temporary_approved = []
 approved = []
+visited_nodes = []
 
 
 def save_temporary_nodes(node1, node2):
     x = set()
     x.add(node1)
     x.add(node2)
-    if x not in approved:
-        approved.append(x)
-
-
-visited_nodes = []
+    if x not in temporary_approved:
+        temporary_approved.append(x)
 
 
 def dfs_match(confi_node, topo_node, visited):  # depth first Search
-    global approved
-    y = approved
+    global temporary_approved
     tested = set()
     tested.add(confi_node)
     tested.add(topo_node)
@@ -151,10 +167,15 @@ def dfs_match(confi_node, topo_node, visited):  # depth first Search
         visited.append(tested)
 
         for confi_connection in confi_connections:
-            for topo_connection in topo_connections:
+            for i in range(len(topo_connections)):
+                topo_connection = topo_connections[i]
                 if set(confi_connection.terminals) <= set(topo_connection.terminals):
+                    save_temporary_nodes(confi_connection, topo_connection)
                     dfs_match(confi_connection, topo_connection, visited)
-                    save_temporary_nodes(confi_node, topo_node)
+                    if i == len(topo_connections) - 1:
+                        if temporary_approved:
+                            approved.append(temporary_approved)
+                            temporary_approved = []
 
 
 def matches():
@@ -166,5 +187,39 @@ def matches():
                 dfs_match(confi_node, topo_node, visited_nodes)
 
 
-matches()
-print(approved)
+def prepare_configuration_nodes():
+    possibilities = []
+    for start in ConfigurationNode.nodes:
+        for end in ConfigurationNode.nodes:
+            if start is not end:
+                flatten_nodes = dfs_preparer(start, end)
+                possibilities.append(flatten_nodes)
+    return possibilities
+
+
+def paths(vertex):
+    path = [vertex]  # path traversed so far
+    seen = {vertex}  # set of vertices in path
+
+    def search():
+        dead_end = True
+        connections = get_next_node(path[-1])
+        for neighbour in connections:  # last element in path. connections
+            if neighbour not in seen:
+                dead_end = False
+                seen.add(neighbour)
+                path.append(neighbour)
+                yield from search()
+                path.pop()
+                seen.remove(neighbour)
+        if dead_end:
+            yield list(path)
+
+    yield from search()
+
+
+# print(prepare_configuration_nodes())
+node1 = ConfigurationNode.nodes[0]
+y = paths(node1)
+y = list(y)
+print(y)
