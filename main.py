@@ -1,3 +1,4 @@
+import itertools
 import pprint
 
 from ConfigurationElement import ConfigurationElement
@@ -23,11 +24,13 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
 
 variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 6 v;'
 variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
-test_topo = 'igbt1 1 2 u; diode1 u 1; igbt5 v 6 0; diode5 0 v; diode6 0 w'
-topo = variant4
-igbt_co_pack = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
+test_topo = 'diode1 1 2; diode2 2 4; igbt1 2 3 4;'
+single_switch = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
 chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
+test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
+
+topo = variant4
 configuration = chopper2
 
 
@@ -102,13 +105,8 @@ netlist_to_oop(topo, True)
 netlist_to_oop(configuration, False)
 
 
-#  variant 1
-# [1, igbt1, 2, 3, diode1, igbt2, 4, v, diode2, igbt3, 5, 6, diode4, igbt4, 7, 0, diode4, diode6, u, diode5]
-# [n3, diode1, n1, igbt, n2, diode2, n0]
-# variant 4
-# [1, igbt1, 2, 3, diode1, igbt2, 4, 0, diode2, diode3, 5]
-# [n3, diode1, n1, igbt, n2, diode2, n0]
 def dfs(node, visited):  # depth First Search
+
     if node not in visited:
         visited.append(node)
         for connection in node.connections:
@@ -116,7 +114,7 @@ def dfs(node, visited):  # depth First Search
     return visited
 
 
-def get_next_node(node: Node):
+def get_next_nodes(node: Node):
     next_nodes = set()
     for c in node.connections:
         connections = c.connections.copy()
@@ -125,85 +123,13 @@ def get_next_node(node: Node):
     return list(next_nodes)
 
 
-x = []
-v = []
-
-
-def dfs_preparer(start, destination):  # depth First Search
-    global v
-    global x
-    if start == destination:
-        x = v
-        v = []
-        return x
-    else:
-        connections = get_next_node(start)
-        v.append(start)
-        for connection in connections:
-            dfs_preparer(connection, destination)
-
-
-temporary_approved = []
-approved = []
-visited_nodes = []
-
-
-def save_temporary_nodes(node1, node2):
-    x = set()
-    x.add(node1)
-    x.add(node2)
-    if x not in temporary_approved:
-        temporary_approved.append(x)
-
-
-def dfs_match(confi_node, topo_node, visited):  # depth first Search
-    global temporary_approved
-    tested = set()
-    tested.add(confi_node)
-    tested.add(topo_node)
-    confi_connections = get_next_node(confi_node)
-    topo_connections = get_next_node(topo_node)
-    if tested not in visited:
-        visited.append(tested)
-
-        for confi_connection in confi_connections:
-            for i in range(len(topo_connections)):
-                topo_connection = topo_connections[i]
-                if set(confi_connection.terminals) <= set(topo_connection.terminals):
-                    save_temporary_nodes(confi_connection, topo_connection)
-                    dfs_match(confi_connection, topo_connection, visited)
-                    if i == len(topo_connections) - 1:
-                        if temporary_approved:
-                            approved.append(temporary_approved)
-                            temporary_approved = []
-
-
-def matches():
-    for confi_node in ConfigurationNode.nodes:
-        for topo_node in TopologyNode.nodes:
-
-            if set(confi_node.terminals) <= set(topo_node.terminals):
-                save_temporary_nodes(confi_node, topo_node)
-                dfs_match(confi_node, topo_node, visited_nodes)
-
-
-def prepare_configuration_nodes():
-    possibilities = []
-    for start in ConfigurationNode.nodes:
-        for end in ConfigurationNode.nodes:
-            if start is not end:
-                flatten_nodes = dfs_preparer(start, end)
-                possibilities.append(flatten_nodes)
-    return possibilities
-
-
 def paths(vertex):
     path = [vertex]  # path traversed so far
     seen = {vertex}  # set of vertices in path
 
     def search():
         dead_end = True
-        connections = get_next_node(path[-1])
+        connections = get_next_nodes(path[-1])
         for neighbour in connections:  # last element in path. connections
             if neighbour not in seen:
                 dead_end = False
@@ -218,8 +144,72 @@ def paths(vertex):
     yield from search()
 
 
-# print(prepare_configuration_nodes())
-node1 = ConfigurationNode.nodes[0]
-y = paths(node1)
-y = list(y)
-print(y)
+def old_match():
+    for confi_node in ConfigurationNode.nodes:
+        for topo_node in TopologyNode.nodes:
+            path = [topo_node]
+            seen = {topo_node}
+
+            def dfs_match():
+                dead_end = True
+                if set(confi_node.terminals) <= set(path[-1].terminals):
+                    connections = get_next_nodes(path[-1])
+                    for connection in connections:
+                        if connection not in seen:
+                            if set(confi_node.terminals) <= set(connection.terminals):
+                                dead_end = False
+
+                if dead_end:
+                    if len(path) > 1:
+                        yield list(path)
+
+            yield from dfs_match()
+
+
+# print(list(old_match()))
+combinations = []
+
+
+def compare_paths(topo_path, confi_path):
+    path = []
+    confi_length = len(confi_path)
+    topo_length = len(topo_path)
+
+    for i in range(confi_length):
+        if confi_length <= topo_length:
+            t_node = topo_path[i]
+            c_node = confi_path[i]
+            if set(c_node.terminals) <= set(t_node.terminals):
+                path.append((t_node, c_node))
+            else:
+                return
+    if path:
+        combinations.append(path)
+
+
+def possible_paths():
+    for topo_node in TopologyNode.nodes:
+        for confi_node in ConfigurationNode.nodes:
+
+            topo_paths = list(paths(topo_node))
+            confi_paths = list(paths(confi_node))
+
+            for topo_path in topo_paths:
+                for confi_path in confi_paths:
+
+                    if len(confi_path) <= len(topo_path):
+                        compare_paths(topo_path, confi_path)
+
+
+def refine_combinations():
+    length = len(max(combinations, key=len))
+    possible_combination = [i for i in combinations if len(i) == length]
+
+    return possible_combination
+
+
+possible_paths()
+# combinations_set = set(tuple(x) for x in refine_combinations())
+# c = [list(x) for x in combinations_set]
+# pprint.pprint(refine_combinations())
+# pprint.pprint(c)
