@@ -30,7 +30,7 @@ chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topo = variant4
+topology = variant4
 configuration = chopper2
 
 
@@ -101,7 +101,7 @@ def sub_graph_matches():
 # todo sub-topology could be created from the extracted matches
 
 
-netlist_to_oop(topo, True)
+netlist_to_oop(topology, True)
 netlist_to_oop(configuration, False)
 
 
@@ -130,86 +130,63 @@ def paths(vertex):
     def search():
         dead_end = True
         connections = get_next_nodes(path[-1])
-        for neighbour in connections:  # last element in path. connections
-            if neighbour not in seen:
+        for connection in connections:
+            if connection not in seen:
                 dead_end = False
-                seen.add(neighbour)
-                path.append(neighbour)
+                seen.add(connection)
+                path.append(connection)
                 yield from search()
                 path.pop()
-                seen.remove(neighbour)
+                seen.remove(connection)
         if dead_end:
-            yield list(path)
+            if len(path) == len(ConfigurationNode.nodes):
+                yield list(path)
 
     yield from search()
 
 
-def old_match():
-    for confi_node in ConfigurationNode.nodes:
-        for topo_node in TopologyNode.nodes:
-            path = [topo_node]
-            seen = {topo_node}
-
-            def dfs_match():
-                dead_end = True
-                if set(confi_node.terminals) <= set(path[-1].terminals):
-                    connections = get_next_nodes(path[-1])
-                    for connection in connections:
-                        if connection not in seen:
-                            if set(confi_node.terminals) <= set(connection.terminals):
-                                dead_end = False
-
-                if dead_end:
-                    if len(path) > 1:
-                        yield list(path)
-
-            yield from dfs_match()
-
-
-# print(list(old_match()))
-combinations = []
-
-
 def compare_paths(topo_path, confi_path):
     path = []
-    confi_length = len(confi_path)
-    topo_length = len(topo_path)
 
-    for i in range(confi_length):
-        if confi_length <= topo_length:
-            t_node = topo_path[i]
-            c_node = confi_path[i]
-            if set(c_node.terminals) <= set(t_node.terminals):
-                path.append((t_node, c_node))
-            else:
-                return
+    for i in range(len(confi_path)):
+        t_node = topo_path[i]
+        c_node = confi_path[i]
+
+        if set(c_node.terminals) <= set(t_node.terminals):
+            path.append((t_node, c_node))
+            # yield t_node, c_node
+        else:
+            return
     if path:
-        combinations.append(path)
+        # combinations.append(path)
+        return path
 
 
 def possible_paths():
+    routes = []
+    topo_paths = []
+    confi_paths = []
+    corresponding_nodes = []
+
     for topo_node in TopologyNode.nodes:
-        for confi_node in ConfigurationNode.nodes:
+        topo_paths.extend(list(paths(topo_node)))
+    for confi_node in ConfigurationNode.nodes:
+        confi_paths.extend(list(paths(confi_node)))
 
-            topo_paths = list(paths(topo_node))
-            confi_paths = list(paths(confi_node))
+    for topo_path in topo_paths:
+        for confi_path in confi_paths:
 
-            for topo_path in topo_paths:
-                for confi_path in confi_paths:
+            if len(confi_path) <= len(topo_path):
+                route = compare_paths(topo_path, confi_path)
 
-                    if len(confi_path) <= len(topo_path):
-                        compare_paths(topo_path, confi_path)
+                if route:
+                    route = set(route)
+                    if route not in routes:
+                        routes.append(route)
+                        corresponding_nodes.append(list(route))
 
-
-def refine_combinations():
-    length = len(max(combinations, key=len))
-    possible_combination = [i for i in combinations if len(i) == length]
-
-    return possible_combination
+    return corresponding_nodes
 
 
-possible_paths()
-# combinations_set = set(tuple(x) for x in refine_combinations())
-# c = [list(x) for x in combinations_set]
-# pprint.pprint(refine_combinations())
-# pprint.pprint(c)
+results = possible_paths()
+pprint.pprint(results)
