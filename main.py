@@ -1,9 +1,7 @@
-import itertools
 import pprint
 
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
-from Element import Element
 from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
@@ -154,11 +152,9 @@ def compare_paths(topo_path, confi_path):
 
         if set(c_node.terminals) <= set(t_node.terminals):
             path.append((t_node, c_node))
-            # yield t_node, c_node
         else:
             return
     if path:
-        # combinations.append(path)
         return path
 
 
@@ -174,9 +170,7 @@ def detect_single_switches():
 
 
 def get_elements_from_possible_layouts(route):
-    # routes = possible_layouts()
     elements = []
-    # for route in routes:
 
     topo_nodes = [i[0] for i in route]
 
@@ -194,12 +188,22 @@ def get_elements_from_possible_layouts(route):
     return set(elements)
 
 
+def route_split_single_switch(route):
+    single_switches = detect_single_switches()
+    if route:
+        elements_on_route = get_elements_from_possible_layouts(route)
+        for unit in single_switches:
+            intersection = set(unit).intersection(elements_on_route)
+            if len(intersection) == 1:
+                return True
+    return False
+
+
 def possible_layouts():
     routes = []
     topo_paths = []
     confi_paths = []
-    corresponding_nodes = []
-    single_switches = detect_single_switches()
+    accepted_routes = []
 
     for topo_node in TopologyNode.nodes:
         topo_paths.extend(list(paths(topo_node)))
@@ -209,27 +213,22 @@ def possible_layouts():
     for topo_path in topo_paths:
         for confi_path in confi_paths:
 
-            if len(confi_path) <= len(topo_path):
-                route = compare_paths(topo_path, confi_path)
+            route = compare_paths(topo_path, confi_path)
 
-                if route:
-                    route = set(route)
-                    if route not in routes:
-                        elements_on_route = get_elements_from_possible_layouts(route)
-                        for unit in single_switches:
+            if route:
+                route = set(route)
+                if route not in routes:
+                    routes.append(route)
+                    if not route_split_single_switch(route):
+                        accepted_routes.append(list(route))
 
-                            if all(item in unit for item in elements_on_route):
-                                routes.append(route)
-                                corresponding_nodes.append(list(route))
-                            elif all(item not in unit for item in elements_on_route):
-                                routes.append(route)
-                                corresponding_nodes.append(list(route))
-
-    return corresponding_nodes
+    return accepted_routes
 
 
 results = possible_layouts()
+
 pprint.pprint(results)
+
 
 # pprint.pprint(results)
 
