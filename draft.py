@@ -18,3 +18,9 @@ test_list = [[(1, 'n1'), (2, 'n2'), (3, 'n3'), (0, 'n0')],
 _list1 = [(5, 'n0'), (3, 'n3'), (1, 'n1'), (2, 'n2')]
 _list2 = [(5, 'n0'), (3, 'n3'), (2, 'n2'), (1, 'n1')]
 
+data = [1, 2, 3, 4, 5, 6, 7]
+print(data[1::2])
+print(data[0::2])
+
+for i, k in zip(data[0::2], data[1::2]):
+    print(str(i), '+', str(k), '=', str(i + k))

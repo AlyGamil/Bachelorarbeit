@@ -162,7 +162,7 @@ def compare_paths(topo_path, confi_path):
         return path
 
 
-def possible_paths():
+def possible_assigning():
     routes = []
     topo_paths = []
     confi_paths = []
@@ -188,5 +188,51 @@ def possible_paths():
     return corresponding_nodes
 
 
-results = possible_paths()
-pprint.pprint(results)
+results = possible_assigning()
+
+
+# pprint.pprint(results)
+
+
+def detect_single_switch():
+    for diode in TopologyElement.elements:
+        for igbt in TopologyElement.elements:
+            if diode.typ is Types.DIODE:
+                if igbt.typ is Types.IGBT:
+
+                    if igbt.connections[0] == diode.connections[1]:
+                        if igbt.connections[2] == diode.connections[0]:
+                            print(diode, igbt)
+
+
+def get_elements_between_two_nodes(node1, node2):
+    return set(node1.connections).intersection(node2.connections)
+
+
+def detect_single_switch_from_results():
+    routes = possible_assigning()
+    single_switches = []
+    for route in routes:
+
+        topo_nodes = [i[0] for i in route]
+
+        for node1 in topo_nodes:
+            for node2 in topo_nodes:
+                if node1 is not node2:
+
+                    # elements_between_two_nodes
+                    parallel_elements = set(node1.connections).intersection(set(node2.connections))
+                    if parallel_elements and len(parallel_elements) > 1:
+                        igbt = [i for i in parallel_elements if i.typ == Types.IGBT][0]
+                        diode = [i for i in parallel_elements if i.typ == Types.DIODE][0]
+
+                        if igbt.typ is Types.IGBT and diode.typ is Types.DIODE:
+                            if igbt.connections not in single_switches:
+                                single_switches.append(igbt.connections)
+
+    return single_switches
+
+
+print(detect_single_switch_from_results())
+
+
