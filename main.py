@@ -162,11 +162,44 @@ def compare_paths(topo_path, confi_path):
         return path
 
 
-def possible_assigning():
+def detect_single_switches():
+    for diode in TopologyElement.elements:
+        for igbt in TopologyElement.elements:
+            if diode.typ is Types.DIODE:
+                if igbt.typ is Types.IGBT:
+
+                    if igbt.connections[0] == diode.connections[1]:
+                        if igbt.connections[2] == diode.connections[0]:
+                            yield [diode, igbt]
+
+
+def get_elements_from_possible_layouts(route):
+    # routes = possible_layouts()
+    elements = []
+    # for route in routes:
+
+    topo_nodes = [i[0] for i in route]
+
+    for node1 in topo_nodes:
+        for node2 in topo_nodes:
+            if node1 is not node2:
+
+                # elements = set(node1.connections).intersection(set(node2.connections))
+                common_elements = [i for i in node2.connections if i in node1.connections]
+                if common_elements:
+                    for element in common_elements:
+
+                        if set(element.connections).issubset(topo_nodes):
+                            elements.append(element)
+    return set(elements)
+
+
+def possible_layouts():
     routes = []
     topo_paths = []
     confi_paths = []
     corresponding_nodes = []
+    single_switches = detect_single_switches()
 
     for topo_node in TopologyNode.nodes:
         topo_paths.extend(list(paths(topo_node)))
@@ -182,35 +215,30 @@ def possible_assigning():
                 if route:
                     route = set(route)
                     if route not in routes:
-                        routes.append(route)
-                        corresponding_nodes.append(list(route))
+                        elements_on_route = get_elements_from_possible_layouts(route)
+                        for unit in single_switches:
+
+                            if all(item in unit for item in elements_on_route):
+                                routes.append(route)
+                                corresponding_nodes.append(list(route))
+                            elif all(item not in unit for item in elements_on_route):
+                                routes.append(route)
+                                corresponding_nodes.append(list(route))
 
     return corresponding_nodes
 
 
-results = possible_assigning()
-
+results = possible_layouts()
+pprint.pprint(results)
 
 # pprint.pprint(results)
 
 
-def detect_single_switch():
-    for diode in TopologyElement.elements:
-        for igbt in TopologyElement.elements:
-            if diode.typ is Types.DIODE:
-                if igbt.typ is Types.IGBT:
-
-                    if igbt.connections[0] == diode.connections[1]:
-                        if igbt.connections[2] == diode.connections[0]:
-                            print(diode, igbt)
-
-
-def get_elements_between_two_nodes(node1, node2):
-    return set(node1.connections).intersection(node2.connections)
+# print(list(detect_single_switch()))
 
 
 def detect_single_switch_from_results():
-    routes = possible_assigning()
+    routes = possible_layouts()
     single_switches = []
     for route in routes:
 
@@ -232,7 +260,4 @@ def detect_single_switch_from_results():
 
     return single_switches
 
-
-print(detect_single_switch_from_results())
-
-
+# print(detect_single_switch_from_results())
