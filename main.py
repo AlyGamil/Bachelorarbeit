@@ -22,14 +22,17 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
 
 variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 6 v;'
 variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
-test_topo = 'diode1 1 2; diode2 2 4; igbt1 2 3 4;'
-single_switch = 'diode n3 n1;igbt n1 n2 n3;'  # IGBT co-pack
-chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'  # chopper 2
-chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'  # chopper 1
+test_topo = 'igbt1 1 2 3;diode1 3 1;' \
+            'igbt2 3 4 v;diode2 v 3;' \
+            'igbt3 v 5 6;diode4 6 v;' \
+            'diode5 u 3;diode6 6 u;'
+single_switch = 'diode n3 n1;igbt n1 n2 n3;'
+chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
+chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topology = variant4
-configuration = chopper2
+topology = test_topo
+configuration = chopper1
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -49,19 +52,18 @@ def netlist_to_oop(t: str, topology_type: bool):
         element = i.split(' ')[0]
 
         # string of the nodes
-        nodes = i.split(' ')[1:]
+        nodes_str = i.split(' ')[1:]
 
         # list of nodes
         nodes_list = []
 
-        for n in nodes:
-            # skip if node exists
+        for n in nodes_str:
+
             if n not in node_type.nodes:
                 nodes_list.append(node_type(n))
 
             else:
 
-                # create a new node
                 nodes_list.append(node_type.get_node(n))
 
         # create a new element with its nodes
@@ -95,10 +97,6 @@ def sub_graph_matches():
     return similar_nodes
 
 
-# todo create sub-topology and check it can be built from the same configuration
-# todo sub-topology could be created from the extracted matches
-
-
 netlist_to_oop(topology, True)
 netlist_to_oop(configuration, False)
 
@@ -121,7 +119,7 @@ def get_next_nodes(node: Node):
     return list(next_nodes)
 
 
-def paths(vertex):
+def all_paths(vertex):
     path = [vertex]  # path traversed so far
     seen = {vertex}  # set of vertices in path
 
@@ -145,15 +143,30 @@ def paths(vertex):
 
 def compare_paths(topo_path, confi_path):
     path = []
-
+    u = TopologyNode.get_node('u')
+    v = TopologyNode.get_node('v')
+    drei = TopologyNode.get_node('3')
+    vier = TopologyNode.get_node('4')
+    test = [u, drei, v, vier]
+    x = [True if j in test else False for j in topo_path]
     for i in range(len(confi_path)):
-        t_node = topo_path[i]
-        c_node = confi_path[i]
+        if len(topo_path) >= len(confi_path):
 
-        if set(c_node.terminals) <= set(t_node.terminals):
-            path.append((t_node, c_node))
-        else:
-            return
+            t_node = topo_path[i]
+            c_node = confi_path[i]
+            # [(v, n0), (u, n1), (6, n2), (5, n3)]
+            # [(v, n0), (u, n1), (3, n2), (4, n3)]
+
+            if set(c_node.terminals) <= set(t_node.terminals):
+                if all(x):
+                    print(c_node)
+                    print(c_node.terminals)
+                    print(t_node)
+                    print(t_node.terminals)
+                    print()
+                path.append((t_node, c_node))
+            else:
+                return
     if path:
         return path
 
@@ -163,56 +176,59 @@ def detect_single_switches():
         for igbt in TopologyElement.elements:
             if diode.typ is Types.DIODE:
                 if igbt.typ is Types.IGBT:
-
                     if igbt.connections[0] == diode.connections[1]:
                         if igbt.connections[2] == diode.connections[0]:
                             yield [diode, igbt]
 
 
-def get_elements_from_possible_layouts(route):
+def get_elements_on_path(route):
     elements = []
-
+    common_elements = set()
     topo_nodes = [i[0] for i in route]
 
     for node1 in topo_nodes:
         for node2 in topo_nodes:
             if node1 is not node2:
+                common_elements.update(set(node2.connections).intersection(node1.connections))
 
-                # elements = set(node1.connections).intersection(set(node2.connections))
-                common_elements = [i for i in node2.connections if i in node1.connections]
-                if common_elements:
-                    for element in common_elements:
+    if common_elements:
+        for element in common_elements:
 
-                        if set(element.connections).issubset(topo_nodes):
-                            elements.append(element)
+            # to avoid adding an IGBT or MOSFET with just two nodes
+            if set(element.connections).issubset(topo_nodes):
+                elements.append(element)
+
     return set(elements)
 
 
 def route_split_single_switch(route):
     single_switches = detect_single_switches()
+
     if route:
-        elements_on_route = get_elements_from_possible_layouts(route)
+        elements_on_route = get_elements_on_path(route)
         for unit in single_switches:
             intersection = set(unit).intersection(elements_on_route)
+
             if len(intersection) == 1:
                 return True
+
     return False
 
 
-def possible_layouts():
+def possible_layouts(configurations_nodes):
     routes = []
     topo_paths = []
     confi_paths = []
     accepted_routes = []
 
     for topo_node in TopologyNode.nodes:
-        topo_paths.extend(list(paths(topo_node)))
-    for confi_node in ConfigurationNode.nodes:
-        confi_paths.extend(list(paths(confi_node)))
+        topo_paths.extend(list(all_paths(topo_node)))
+
+    for confi_node in configurations_nodes:
+        confi_paths.extend(list(all_paths(confi_node)))
 
     for topo_path in topo_paths:
         for confi_path in confi_paths:
-
             route = compare_paths(topo_path, confi_path)
 
             if route:
@@ -220,43 +236,12 @@ def possible_layouts():
                 if route not in routes:
                     routes.append(route)
                     if not route_split_single_switch(route):
-                        accepted_routes.append(list(route))
+                        route = list(route)
+                        route.sort(key=lambda tup: tup[1])
+                        accepted_routes.append(route)
 
     return accepted_routes
 
 
-results = possible_layouts()
-
+results = possible_layouts(ConfigurationNode.nodes)
 pprint.pprint(results)
-
-
-# pprint.pprint(results)
-
-
-# print(list(detect_single_switch()))
-
-
-def detect_single_switch_from_results():
-    routes = possible_layouts()
-    single_switches = []
-    for route in routes:
-
-        topo_nodes = [i[0] for i in route]
-
-        for node1 in topo_nodes:
-            for node2 in topo_nodes:
-                if node1 is not node2:
-
-                    # elements_between_two_nodes
-                    parallel_elements = set(node1.connections).intersection(set(node2.connections))
-                    if parallel_elements and len(parallel_elements) > 1:
-                        igbt = [i for i in parallel_elements if i.typ == Types.IGBT][0]
-                        diode = [i for i in parallel_elements if i.typ == Types.DIODE][0]
-
-                        if igbt.typ is Types.IGBT and diode.typ is Types.DIODE:
-                            if igbt.connections not in single_switches:
-                                single_switches.append(igbt.connections)
-
-    return single_switches
-
-# print(detect_single_switch_from_results())
