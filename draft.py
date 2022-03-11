@@ -1,5 +1,15 @@
-l1 = [(4, 'n3'), ('u', 'n1'), ('v', 'n0'), (3, 'n2')]
+def compare_paths(topo_path, confi_path):
+    path = []
 
-x = lambda y: y[1]
-l1.sort(key=lambda y: y[1])
-print(l1)
+    for i in range(len(confi_path)):
+        if len(topo_path) >= len(confi_path):
+
+            topo_node = topo_path[i]
+            confi_node = confi_path[i]
+
+            # if set(c_node.terminals) <= set(t_node.terminals):
+            if set(confi_node.terminals).issubset(set(topo_node.terminals)):
+                path.append((topo_node, confi_node))
+            else:
+                return
+    return path

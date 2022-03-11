@@ -31,8 +31,8 @@ chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topology = test_topo
-configuration = chopper1
+topology = variant3
+configuration = single_switch
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -141,50 +141,9 @@ def all_paths(vertex):
     yield from search()
 
 
-def compare_paths(topo_path, confi_path):
-    path = []
-    u = TopologyNode.get_node('u')
-    v = TopologyNode.get_node('v')
-    drei = TopologyNode.get_node('3')
-    vier = TopologyNode.get_node('4')
-    test = [u, drei, v, vier]
-    x = [True if j in test else False for j in topo_path]
-    for i in range(len(confi_path)):
-        if len(topo_path) >= len(confi_path):
-
-            t_node = topo_path[i]
-            c_node = confi_path[i]
-            # [(v, n0), (u, n1), (6, n2), (5, n3)]
-            # [(v, n0), (u, n1), (3, n2), (4, n3)]
-
-            if set(c_node.terminals) <= set(t_node.terminals):
-                if all(x):
-                    print(c_node)
-                    print(c_node.terminals)
-                    print(t_node)
-                    print(t_node.terminals)
-                    print()
-                path.append((t_node, c_node))
-            else:
-                return
-    if path:
-        return path
-
-
-def detect_single_switches():
-    for diode in TopologyElement.elements:
-        for igbt in TopologyElement.elements:
-            if diode.typ is Types.DIODE:
-                if igbt.typ is Types.IGBT:
-                    if igbt.connections[0] == diode.connections[1]:
-                        if igbt.connections[2] == diode.connections[0]:
-                            yield [diode, igbt]
-
-
-def get_elements_on_path(route):
+def get_elements_on_path(topo_nodes):
     elements = []
     common_elements = set()
-    topo_nodes = [i[0] for i in route]
 
     for node1 in topo_nodes:
         for node2 in topo_nodes:
@@ -201,11 +160,89 @@ def get_elements_on_path(route):
     return set(elements)
 
 
+def element_same_direction(topo_nodes: list, confi_nodes: list):
+    topo_element = list(get_elements_on_path(topo_nodes))
+    confi_element = list(get_elements_on_path(confi_nodes))
+    if topo_element and confi_element:
+        topo_terminal = topo_nodes[0].element_and_terminal[topo_element[0]]
+        confi_terminal = confi_nodes[0].element_and_terminal[confi_element[0]]
+
+        if topo_terminal == confi_terminal:
+            # print(topo_nodes, topo_element[0], topo_nodes[0].element_and_terminal[topo_element[0]])
+            # print(confi_nodes, confi_element[0], confi_nodes[0].element_and_terminal[confi_element[0]])
+            return True
+
+    elif len(topo_element) == 0 and len(confi_element) == 0:
+        return True
+
+    else:
+        return False
+
+
+def compare_routes(topo_path: list, confi_path: list, variable=None):
+    if len(topo_path) >= len(confi_path):
+        for i in range(len(confi_path) - 1):
+
+            topo_node = topo_path[i]
+            next_topo_node = topo_path[i + 1]
+            confi_node = confi_path[i]
+            next_confi_node = confi_path[i + 1]
+
+            if set(confi_node.terminals) <= (set(topo_node.terminals)):
+                if set(next_confi_node.terminals) <= (set(next_topo_node.terminals)):
+                    if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
+                        continue
+
+                    else:
+                        return False
+
+        return [(topo_path[j], confi_path[j]) for j in range(len(confi_path))]
+    else:
+        return False
+
+
+def compare_paths(topo_path, confi_path):
+    path = []
+
+    for i in range(len(confi_path) - 1):
+        if len(topo_path) >= len(confi_path):
+
+            topo_node = topo_path[i]
+            next_topo_node = topo_path[i + 1]
+            confi_node = confi_path[i]
+            next_confi_node = confi_path[i + 1]
+
+            if set(confi_node.terminals).issubset(set(topo_node.terminals)):
+                if set(next_confi_node.terminals).issubset(set(next_topo_node.terminals)):
+                    if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
+                        path.append((topo_node, confi_node))
+            else:
+                return
+
+    path.append((topo_path[-1], confi_path[-1]))
+
+    if len(path) == len(confi_path):
+        return path
+    else:
+        return False
+
+
+def detect_single_switches():
+    for diode in TopologyElement.elements:
+        for igbt in TopologyElement.elements:
+            if diode.typ is Types.DIODE:
+                if igbt.typ is Types.IGBT:
+                    if igbt.connections[0] == diode.connections[1]:
+                        if igbt.connections[2] == diode.connections[0]:
+                            yield [diode, igbt]
+
+
 def route_split_single_switch(route):
     single_switches = detect_single_switches()
 
     if route:
-        elements_on_route = get_elements_on_path(route)
+        topo_nodes = [i[0] for i in route]
+        elements_on_route = get_elements_on_path(topo_nodes)
         for unit in single_switches:
             intersection = set(unit).intersection(elements_on_route)
 
@@ -230,9 +267,10 @@ def possible_layouts(configurations_nodes):
     for topo_path in topo_paths:
         for confi_path in confi_paths:
             route = compare_paths(topo_path, confi_path)
-
+            # route = compare_routes(topo_path, confi_path)
             if route:
                 route = set(route)
+
                 if route not in routes:
                     routes.append(route)
                     if not route_split_single_switch(route):
@@ -245,3 +283,15 @@ def possible_layouts(configurations_nodes):
 
 results = possible_layouts(ConfigurationNode.nodes)
 pprint.pprint(results)
+# u = TopologyNode.get_node('u')
+# v = TopologyNode.get_node('v')
+# drei = TopologyNode.get_node('3')
+# vier = TopologyNode.get_node('4')
+# zero = TopologyNode.get_node('0')
+# sieben = TopologyNode.get_node('7')
+# n1 = ConfigurationNode.get_node('n1')
+# n2 = ConfigurationNode.get_node('n2')
+# n3 = ConfigurationNode.get_node('n3')
+# n0 = ConfigurationNode.get_node('n0')
+# test = [u, drei, v, vier]
+# print(element_same_direction([zero, sieben], [n0, n3]))
