@@ -27,4 +27,4 @@ def compare_paths(topo_path, confi_path):
 # n0 = ConfigurationNode.get_node('n0')
 # test = [u, drei, v, vier]
 # print(element_same_direction([zero, sieben], [n0, n3]))
-print(len([(1, 2)]))
+

@@ -31,8 +31,8 @@ chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topology = variant4
-configuration = chopper2
+topology = b6
+configuration = single_switch
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -188,15 +188,15 @@ def compare_routes(topo_path: list, confi_path: list):
     c_path = confi_path.copy()
 
     def search_tree():
-        t_node = t_path.pop(0)
-        c_node = c_path.pop(0)
-        if set(c_node.terminals).issubset(set(t_node.terminals)):
+        topo_node = t_path.pop(0)
+        confi_node = c_path.pop(0)
+        if set(confi_node.terminals).issubset(set(topo_node.terminals)):
             if len(c_path) > 0:
-                if element_same_direction([t_node, t_path[0]], [c_node, c_path[0]]):
-                    yield t_node, c_node
+                if element_same_direction([topo_node, t_path[0]], [confi_node, c_path[0]]):
+                    yield topo_node, confi_node
                     yield from search_tree()
-            elif set(c_node.terminals).issubset(set(t_node.terminals)):
-                yield t_node, c_node
+            elif set(confi_node.terminals).issubset(set(topo_node.terminals)):
+                yield topo_node, confi_node
 
     yield from search_tree()
 
@@ -284,13 +284,7 @@ def possible_layouts(configurations_nodes):
 
 
 results = possible_layouts(ConfigurationNode.nodes)
-pprint.pprint(results)
-# [1, w, 4] [n1, n3, n2]
-# [1, v, 3] [n1, n3, n2]
-# [1, u, 2] [n1, n3, n2]
-# [u, 0, 5] [n1, n3, n2]
-# [v, 0, 6] [n1, n3, n2]
-# [w, 0, 7] [n1, n3, n2]
+# pprint.pprint(results)
 one = TopologyNode.get_node('1')
 two = TopologyNode.get_node('2')
 three = TopologyNode.get_node('3')
@@ -304,6 +298,3 @@ w = TopologyNode.get_node('w')
 n1 = ConfigurationNode.get_node('n1')
 n2 = ConfigurationNode.get_node('n2')
 n3 = ConfigurationNode.get_node('n3')
-# t_path = [one, w, four]
-# c_path = [n1, n3, n2]
-# print(list(compare_routes(t_path, c_path)))
