@@ -31,8 +31,8 @@ chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topology = variant3
-configuration = single_switch
+topology = variant4
+configuration = chopper2
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -161,17 +161,21 @@ def get_elements_on_path(topo_nodes):
 
 
 def element_same_direction(topo_nodes: list, confi_nodes: list):
+    # common element
     topo_element = list(get_elements_on_path(topo_nodes))
     confi_element = list(get_elements_on_path(confi_nodes))
+
+    # if common element exists check direction
     if topo_element and confi_element:
+
+        # check if both the topology element terminal and the configuration element terminal are the same
         topo_terminal = topo_nodes[0].element_and_terminal[topo_element[0]]
         confi_terminal = confi_nodes[0].element_and_terminal[confi_element[0]]
 
         if topo_terminal == confi_terminal:
-            # print(topo_nodes, topo_element[0], topo_nodes[0].element_and_terminal[topo_element[0]])
-            # print(confi_nodes, confi_element[0], confi_nodes[0].element_and_terminal[confi_element[0]])
             return True
 
+    # if there is no connection between the nodes return true
     elif len(topo_element) == 0 and len(confi_element) == 0:
         return True
 
@@ -179,26 +183,22 @@ def element_same_direction(topo_nodes: list, confi_nodes: list):
         return False
 
 
-def compare_routes(topo_path: list, confi_path: list, variable=None):
-    if len(topo_path) >= len(confi_path):
-        for i in range(len(confi_path) - 1):
+def compare_routes(topo_path: list, confi_path: list):
+    t_path = topo_path.copy()
+    c_path = confi_path.copy()
 
-            topo_node = topo_path[i]
-            next_topo_node = topo_path[i + 1]
-            confi_node = confi_path[i]
-            next_confi_node = confi_path[i + 1]
+    def search_tree():
+        t_node = t_path.pop(0)
+        c_node = c_path.pop(0)
+        if set(c_node.terminals).issubset(set(t_node.terminals)):
+            if len(c_path) > 0:
+                if element_same_direction([t_node, t_path[0]], [c_node, c_path[0]]):
+                    yield t_node, c_node
+                    yield from search_tree()
+            elif set(c_node.terminals).issubset(set(t_node.terminals)):
+                yield t_node, c_node
 
-            if set(confi_node.terminals) <= (set(topo_node.terminals)):
-                if set(next_confi_node.terminals) <= (set(next_topo_node.terminals)):
-                    if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
-                        continue
-
-                    else:
-                        return False
-
-        return [(topo_path[j], confi_path[j]) for j in range(len(confi_path))]
-    else:
-        return False
+    yield from search_tree()
 
 
 def compare_paths(topo_path, confi_path):
@@ -266,9 +266,10 @@ def possible_layouts(configurations_nodes):
 
     for topo_path in topo_paths:
         for confi_path in confi_paths:
-            route = compare_paths(topo_path, confi_path)
-            # route = compare_routes(topo_path, confi_path)
-            if route:
+            # route = compare_paths(topo_path, confi_path)
+            route = list(compare_routes(topo_path, confi_path))
+
+            if route and len(route) == len(confi_path):
                 route = set(route)
 
                 if route not in routes:
@@ -277,21 +278,32 @@ def possible_layouts(configurations_nodes):
                         route = list(route)
                         route.sort(key=lambda tup: tup[1])
                         accepted_routes.append(route)
+                        # print(topo_path, confi_path)
 
     return accepted_routes
 
 
 results = possible_layouts(ConfigurationNode.nodes)
 pprint.pprint(results)
-# u = TopologyNode.get_node('u')
-# v = TopologyNode.get_node('v')
-# drei = TopologyNode.get_node('3')
-# vier = TopologyNode.get_node('4')
-# zero = TopologyNode.get_node('0')
-# sieben = TopologyNode.get_node('7')
-# n1 = ConfigurationNode.get_node('n1')
-# n2 = ConfigurationNode.get_node('n2')
-# n3 = ConfigurationNode.get_node('n3')
-# n0 = ConfigurationNode.get_node('n0')
-# test = [u, drei, v, vier]
-# print(element_same_direction([zero, sieben], [n0, n3]))
+# [1, w, 4] [n1, n3, n2]
+# [1, v, 3] [n1, n3, n2]
+# [1, u, 2] [n1, n3, n2]
+# [u, 0, 5] [n1, n3, n2]
+# [v, 0, 6] [n1, n3, n2]
+# [w, 0, 7] [n1, n3, n2]
+one = TopologyNode.get_node('1')
+two = TopologyNode.get_node('2')
+three = TopologyNode.get_node('3')
+four = TopologyNode.get_node('4')
+five = TopologyNode.get_node('5')
+six = TopologyNode.get_node('6')
+seven = TopologyNode.get_node('7')
+u = TopologyNode.get_node('u')
+v = TopologyNode.get_node('v')
+w = TopologyNode.get_node('w')
+n1 = ConfigurationNode.get_node('n1')
+n2 = ConfigurationNode.get_node('n2')
+n3 = ConfigurationNode.get_node('n3')
+# t_path = [one, w, four]
+# c_path = [n1, n3, n2]
+# print(list(compare_routes(t_path, c_path)))

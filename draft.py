@@ -13,3 +13,18 @@ def compare_paths(topo_path, confi_path):
             else:
                 return
     return path
+
+
+# u = TopologyNode.get_node('u')
+# v = TopologyNode.get_node('v')
+# drei = TopologyNode.get_node('3')
+# vier = TopologyNode.get_node('4')
+# zero = TopologyNode.get_node('0')
+# sieben = TopologyNode.get_node('7')
+# n1 = ConfigurationNode.get_node('n1')
+# n2 = ConfigurationNode.get_node('n2')
+# n3 = ConfigurationNode.get_node('n3')
+# n0 = ConfigurationNode.get_node('n0')
+# test = [u, drei, v, vier]
+# print(element_same_direction([zero, sieben], [n0, n3]))
+print(len([(1, 2)]))
