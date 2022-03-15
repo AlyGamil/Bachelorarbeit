@@ -4,19 +4,19 @@ from Types import Types
 
 
 class ConfigurationNode(Node):
-    nodes = []
+    # nodes = []
 
     def __init__(self, name):
         super().__init__(name)
-        ConfigurationNode.nodes.append(self)
+        self.nodes = []
+        # self.nodes.append(self)
 
     def add_connection(self, element: Element, terminal: Types):
         self.connections.append(element)
         self.terminals.append(terminal)
         self.element_and_terminal[element] = terminal
 
-    @staticmethod
-    def get_node(name: str):
-        for n in ConfigurationNode.nodes:
+    def get_node(self, name: str):
+        for n in self.nodes:
             if n == name:
                 return n

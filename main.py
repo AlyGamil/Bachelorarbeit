@@ -20,7 +20,7 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
            'igbt4 6 7 0;diode4 0 6;' \
            'diode5 u 3;diode6 6 u;'
 
-variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 6 v;'
+variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 5 v;'
 variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
 test_topo = 'igbt1 1 2 3;diode1 3 1;' \
             'igbt2 3 4 v;diode2 v 3;' \
@@ -33,6 +33,104 @@ test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
 topology = b6
 configuration = single_switch
+
+configurations = {
+    'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
+    'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
+    'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
+    'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
+}
+configurations_objects = []
+
+
+def add_connections_to_nodes(element, nodes: list):
+    # append the element of the list of connections of each node
+    if element.typ is Types.DIODE:
+        nodes[0].add_connection(element, Types.DIODE_ANODE)
+        nodes[1].add_connection(element, Types.DIODE_CATHODE)
+
+    if element.typ is Types.IGBT:
+        nodes[0].add_connection(element, Types.IGBT_COLLECTOR)
+        nodes[1].add_connection(element, Types.IGBT_GATE)
+        nodes[2].add_connection(element, Types.IGBT_EMITTER)
+
+
+def create_topology_nodes(nodes_as_string, topology_name=None):
+    nodes_list = []
+    for i in nodes_as_string:
+        n = f'{topology=}'.split('=')[0] + '_' + i
+
+        if n not in TopologyNode.nodes:
+            nodes_list.append(TopologyNode(n))
+
+        else:
+            nodes_list.append(TopologyNode.get_node(n))
+    return nodes_list
+
+
+def netlist_configuration_to_oop(configurations_dictionary):
+    for key in configurations_dictionary.keys():
+        confi = ConfigurationNode(key)
+        value = configurations_dictionary[key]
+        items = value.split(';')
+
+        for i in items:
+            if i:
+                i = i.lstrip()
+
+                # element name
+                element = i.split(' ')[0]
+
+                # string of the nodes
+                nodes_as_string = i.split(' ')[1:]
+
+                sorted_nodes_list = []
+
+                for j in nodes_as_string:
+                    n = str(key) + '_' + j
+
+                    if n not in confi.nodes:
+                        new_node = ConfigurationNode(n)
+                        sorted_nodes_list.append(new_node)
+                    else:
+                        sorted_nodes_list.append(confi.get_node(n))
+
+                # confi.nodes.extend(sorted_nodes_list.copy())
+
+                confi.nodes.extend(sorted_nodes_list)
+                confi.nodes = list(set(confi.nodes))
+
+                # create a new element with its nodes
+                element = ConfigurationElement(element, sorted_nodes_list)
+
+                add_connections_to_nodes(element, sorted_nodes_list)
+                sorted_nodes_list = []
+
+        configurations_objects.append(confi)
+
+
+def netlist_topology_to_oop(topology_netlist: str):
+    parts = topology_netlist.split(';')
+    for i in parts:
+        i = i.lstrip()
+
+        # element name
+        element = i.split(' ')[0]
+
+        # string of the nodes
+        nodes_as_string = i.split(' ')[1:]
+
+        # list of nodes
+        nodes_list = create_topology_nodes(nodes_as_string)
+
+        # create a new element with its nodes
+        element = TopologyElement(element, nodes_list)
+
+        add_connections_to_nodes(element, nodes_list)
+
+
+netlist_topology_to_oop(topology)
+netlist_configuration_to_oop(configurations)
 
 
 def netlist_to_oop(t: str, topology_type: bool):
@@ -80,10 +178,14 @@ def netlist_to_oop(t: str, topology_type: bool):
             nodes_list[2].add_connection(element, Types.IGBT_EMITTER)
 
 
+# netlist_to_oop(topology, True)
+# netlist_to_oop(configuration, False)
+
+
 # {'n0': [3, v, 6, 0, u], 'n1': [1, 3, v, 6], 'n2': [2, 4, 5, 7], 'n3': [3, v, 6]}
-def sub_graph_matches():
+def sub_graph_matches(confi):
     topology_nodes = TopologyNode.nodes.copy()
-    configuration_nodes = ConfigurationNode.nodes.copy()
+    configuration_nodes = confi.nodes.copy()
 
     similar_nodes = {}
     for i in configuration_nodes:
@@ -95,10 +197,6 @@ def sub_graph_matches():
                 similar_nodes[confi_node.name].append(topo_node)
 
     return similar_nodes
-
-
-netlist_to_oop(topology, True)
-netlist_to_oop(configuration, False)
 
 
 def dfs(node, visited):  # depth First Search
@@ -119,7 +217,7 @@ def get_next_nodes(node: Node):
     return list(next_nodes)
 
 
-def all_paths(vertex):
+def all_paths(vertex, configuration_nodes):
     path = [vertex]  # path traversed so far
     seen = {vertex}  # set of vertices in path
 
@@ -135,7 +233,7 @@ def all_paths(vertex):
                 path.pop()
                 seen.remove(connection)
         if dead_end:
-            if len(path) == len(ConfigurationNode.nodes):
+            if len(path) == len(configuration_nodes):
                 yield list(path)
 
     yield from search()
@@ -211,9 +309,9 @@ def compare_paths(topo_path, confi_path):
             next_topo_node = topo_path[i + 1]
             confi_node = confi_path[i]
             next_confi_node = confi_path[i + 1]
-
             if set(confi_node.terminals).issubset(set(topo_node.terminals)):
                 if set(next_confi_node.terminals).issubset(set(next_topo_node.terminals)):
+
                     if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
                         path.append((topo_node, confi_node))
             else:
@@ -257,18 +355,19 @@ def possible_layouts(configurations_nodes):
     topo_paths = []
     confi_paths = []
     accepted_routes = []
-
     for topo_node in TopologyNode.nodes:
-        topo_paths.extend(list(all_paths(topo_node)))
+        topo_paths.extend(all_paths(topo_node, configurations_nodes))
 
     for confi_node in configurations_nodes:
-        confi_paths.extend(list(all_paths(confi_node)))
+        confi_paths.extend(all_paths(confi_node, configurations_nodes))
 
     for topo_path in topo_paths:
-        for confi_path in confi_paths:
-            # route = compare_paths(topo_path, confi_path)
-            route = list(compare_routes(topo_path, confi_path))
 
+        for confi_path in confi_paths:
+
+            route = compare_paths(topo_path, confi_path)
+            # route = list(compare_routes(topo_path, confi_path))
+            # print(route)
             if route and len(route) == len(confi_path):
                 route = set(route)
 
@@ -278,13 +377,14 @@ def possible_layouts(configurations_nodes):
                         route = list(route)
                         route.sort(key=lambda tup: tup[1])
                         accepted_routes.append(route)
-                        # print(topo_path, confi_path)
 
-    return accepted_routes
+    return accepted_routes, len(accepted_routes)
 
 
-results = possible_layouts(ConfigurationNode.nodes)
-# pprint.pprint(results)
+for c in configurations_objects:
+    results = possible_layouts(c.nodes)
+    pprint.pprint(results)
+
 one = TopologyNode.get_node('1')
 two = TopologyNode.get_node('2')
 three = TopologyNode.get_node('3')
@@ -295,6 +395,6 @@ seven = TopologyNode.get_node('7')
 u = TopologyNode.get_node('u')
 v = TopologyNode.get_node('v')
 w = TopologyNode.get_node('w')
-n1 = ConfigurationNode.get_node('n1')
-n2 = ConfigurationNode.get_node('n2')
-n3 = ConfigurationNode.get_node('n3')
+# n1 = ConfigurationNode.get_node('n1')
+# n2 = ConfigurationNode.get_node('n2')
+# n3 = ConfigurationNode.get_node('n3')
