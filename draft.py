@@ -1,44 +1,19 @@
-import main
+import pprint
+from itertools import product
 
-
-def compare_paths(topo_path, confi_path):
-    path = []
-
-    for i in range(len(confi_path)):
-        if len(topo_path) >= len(confi_path):
-
-            topo_node = topo_path[i]
-            confi_node = confi_path[i]
-
-            # if set(c_node.terminals) <= set(t_node.terminals):
-            if set(confi_node.terminals).issubset(set(topo_node.terminals)):
-                path.append((topo_node, confi_node))
-            else:
-                return
-    return path
-
-
-def element_same_direction(topo_nodes: list, confi_nodes: list):
-    # common element
-    topo_element = list(main.get_elements_on_path(topo_nodes))
-    confi_element = list(main.get_elements_on_path(confi_nodes))
-
-    # if common element exists check direction
-    if topo_element and confi_element:
-
-        # check if both the topology element terminal and the configuration element terminal are the same
-        topo_terminal = topo_nodes[0].element_and_terminal[topo_element[0]]
-        confi_terminal = confi_nodes[0].element_and_terminal[confi_element[0]]
-
-        if topo_terminal == confi_terminal:
-            return True
-
-    # if there is no connection between the nodes return true
-    elif len(topo_element) == 0 and len(confi_element) == 0:
-        return True
-
-    else:
-        return False
+# one = TopologyNode.get_node('1')
+# two = TopologyNode.get_node('2')
+# three = TopologyNode.get_node('3')
+# four = TopologyNode.get_node('4')
+# five = TopologyNode.get_node('5')
+# six = TopologyNode.get_node('6')
+# seven = TopologyNode.get_node('7')
+# u = TopologyNode.get_node('u')
+# v = TopologyNode.get_node('v')
+# w = TopologyNode.get_node('w')
+# n1 = ConfigurationNode.get_node('n1')
+# n2 = ConfigurationNode.get_node('n2')
+# n3 = ConfigurationNode.get_node('n3')
 
 
 # u = TopologyNode.get_node('u')
@@ -53,3 +28,101 @@ def element_same_direction(topo_nodes: list, confi_nodes: list):
 # n0 = ConfigurationNode.get_node('n0')
 # test = [u, drei, v, vier]
 # print(element_same_direction([zero, sieben], [n0, n3]))
+
+l1, l2 = [1, 2, 3], ['a', 'b']
+
+
+# output = list(product(l1, l2))
+
+
+def foo(*args):
+    output = list(product(*args))
+    return output
+
+
+def swap(seq, i, j):
+    seq[i], seq[j] = seq[j], seq[i]
+
+
+def generate_permutations(seq, sequence_length, result_length):
+    c = [0] * sequence_length
+    yield seq[:result_length]
+
+    i = 0
+    while i < sequence_length:
+        if c[i] < i:
+            if i % 2 == 0:
+                swap(seq, 0, i)
+            else:
+                swap(seq, c[i], i)
+            yield seq[:result_length]
+            c[i] += 1
+            i = 0
+        else:
+            c[i] = 0
+            i += 1
+
+
+def permutations(seq, resLen=None):
+    if not resLen: resLen = len(seq)
+    return generate_permutations(seq, len(seq), resLen)
+
+
+print(list(permutations([1, 2, 3])))
+
+
+def all_perms(elements):
+    if len(elements) <= 1:
+        yield elements
+    else:
+        for perm in all_perms(elements[1:]):
+            for i in range(len(elements)):
+                yield perm[:i] + elements[0:1] + perm[i:]
+
+
+generated_permutations = []
+
+
+def recursive_heaps_algorithm(elements_to_permute, length):
+    x = generated_permutations
+    if length == 1:
+        generated_permutations.append(elements_to_permute)
+    else:
+        length -= 1
+        recursive_heaps_algorithm(elements_to_permute.copy(), length)
+        for i in range(length):
+            if length & 1:
+                swap(elements_to_permute, 0, length)
+            else:
+                swap(elements_to_permute, i, length)
+
+            recursive_heaps_algorithm(elements_to_permute.copy(), length)
+
+
+def heap_permutation(a, size):
+    # if size becomes 1 then prints the obtained
+    # permutation
+    if size == 1:
+        yield a
+
+    for i in range(size):
+        yield from heap_permutation(a.copy(), size - 1)
+
+        if size & 1:
+            a[0], a[size - 1] = a[size - 1], a[0]
+        else:
+            a[i], a[size - 1] = a[size - 1], a[i]
+
+
+def _permute(l, n):
+    if n == 1:
+        yield l
+    else:
+        yield from _permute(l, n - 1)
+        for i in range(n - 1):
+            if n % 2 == 0:
+                l[i], l[n - 1] = l[n - 1], l[i]
+            else:
+                l[0], l[n - 1] = l[n - 1], l[0]
+
+            yield from _permute(l, n - 1)

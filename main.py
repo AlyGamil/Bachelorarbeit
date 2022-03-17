@@ -7,12 +7,12 @@ from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
 from Types import Types
 
-b6 = "igbt1 1 2 u; diode1 u 1; " \
-     "igbt2 1 3 v; diode2 v 1;" \
-     "igbt3 1 4 w; diode3 w 1;" \
-     "igbt4 u 5 0; diode4 0 u;" \
-     "igbt5 v 6 0; diode5 0 v; " \
-     "igbt6 w 7 0; diode6 0 w;"
+b6_bridge = "igbt1 1 2 u; diode1 u 1; " \
+            "igbt2 1 3 v; diode2 v 1;" \
+            "igbt3 1 4 w; diode3 w 1;" \
+            "igbt4 u 5 0; diode4 0 u;" \
+            "igbt5 v 6 0; diode5 0 v; " \
+            "igbt6 w 7 0; diode6 0 w;"
 
 variant1 = 'igbt1 1 2 3;diode1 3 1;' \
            'igbt2 3 4 v;diode2 v 3;' \
@@ -31,11 +31,11 @@ chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
 chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
 test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
 
-topology = b6
+topology = variant1
 configuration = single_switch
 
 configurations = {
-    'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
+    # 'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
     'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
     'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
     'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
@@ -55,7 +55,7 @@ def add_connections_to_nodes(element, nodes: list):
         nodes[2].add_connection(element, Types.IGBT_EMITTER)
 
 
-def create_topology_nodes(nodes_as_string, topology_name=None):
+def create_topology_nodes(nodes_as_string):
     nodes_list = []
     for i in nodes_as_string:
         n = f'{topology=}'.split('=')[0] + '_' + i
@@ -367,7 +367,7 @@ def possible_layouts(configurations_nodes):
 
             route = compare_paths(topo_path, confi_path)
             # route = list(compare_routes(topo_path, confi_path))
-            # print(route)
+
             if route and len(route) == len(confi_path):
                 route = set(route)
 
@@ -378,23 +378,27 @@ def possible_layouts(configurations_nodes):
                         route.sort(key=lambda tup: tup[1])
                         accepted_routes.append(route)
 
-    return accepted_routes, len(accepted_routes)
+    return accepted_routes
+    # return accepted_routes, 'Number of used modules: ' + str(len(accepted_routes))
 
 
-for c in configurations_objects:
-    results = possible_layouts(c.nodes)
-    pprint.pprint(results)
+def taken_nodes(layouts_tuple):
+    # return list(set([j[0] for layouts in layouts_tuple for j in layouts]))
+    return list(set([j[0] for j in layouts_tuple]))
 
-one = TopologyNode.get_node('1')
-two = TopologyNode.get_node('2')
-three = TopologyNode.get_node('3')
-four = TopologyNode.get_node('4')
-five = TopologyNode.get_node('5')
-six = TopologyNode.get_node('6')
-seven = TopologyNode.get_node('7')
-u = TopologyNode.get_node('u')
-v = TopologyNode.get_node('v')
-w = TopologyNode.get_node('w')
-# n1 = ConfigurationNode.get_node('n1')
-# n2 = ConfigurationNode.get_node('n2')
-# n3 = ConfigurationNode.get_node('n3')
+
+all_possibilities = []
+for conf in configurations_objects:
+    results = possible_layouts(conf.nodes)
+    # pprint.pprint(results)
+    all_possibilities.extend(results)
+
+pprint.pprint(all_possibilities)
+
+generated_permutations = []
+
+# x1 = [(topology_1, half_bridge_n1),
+#   (topology_2, half_bridge_n2),
+#   (topology_3, half_bridge_n3),
+#   (topology_4, half_bridge_n4),
+#   (topology_v, half_bridge_n5)]
