@@ -68,9 +68,6 @@ def permutations(seq, resLen=None):
     return generate_permutations(seq, len(seq), resLen)
 
 
-print(list(permutations([1, 2, 3])))
-
-
 def all_perms(elements):
     if len(elements) <= 1:
         yield elements
@@ -84,7 +81,6 @@ generated_permutations = []
 
 
 def recursive_heaps_algorithm(elements_to_permute, length):
-    x = generated_permutations
     if length == 1:
         generated_permutations.append(elements_to_permute)
     else:
@@ -99,30 +95,19 @@ def recursive_heaps_algorithm(elements_to_permute, length):
             recursive_heaps_algorithm(elements_to_permute.copy(), length)
 
 
-def heap_permutation(a, size):
-    # if size becomes 1 then prints the obtained
-    # permutation
+def heap_permutation(elements_to_permute, size):
     if size == 1:
-        yield a
+        yield elements_to_permute
 
     for i in range(size):
-        yield from heap_permutation(a.copy(), size - 1)
+        yield from heap_permutation(elements_to_permute.copy(), size - 1)
 
         if size & 1:
-            a[0], a[size - 1] = a[size - 1], a[0]
+            elements_to_permute[0], elements_to_permute[size - 1] \
+                = elements_to_permute[size - 1], elements_to_permute[0]
         else:
-            a[i], a[size - 1] = a[size - 1], a[i]
+            elements_to_permute[i], elements_to_permute[size - 1] \
+                = elements_to_permute[size - 1], elements_to_permute[i]
 
 
-def _permute(l, n):
-    if n == 1:
-        yield l
-    else:
-        yield from _permute(l, n - 1)
-        for i in range(n - 1):
-            if n % 2 == 0:
-                l[i], l[n - 1] = l[n - 1], l[i]
-            else:
-                l[0], l[n - 1] = l[n - 1], l[0]
-
-            yield from _permute(l, n - 1)
+print([1, 2] in [1, 2, 3])

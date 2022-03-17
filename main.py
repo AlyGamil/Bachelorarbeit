@@ -1,4 +1,5 @@
 import pprint
+import time
 
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
@@ -6,6 +7,8 @@ from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
 from Types import Types
+
+start_time = time.time()
 
 b6_bridge = "igbt1 1 2 u; diode1 u 1; " \
             "igbt2 1 3 v; diode2 v 1;" \
@@ -35,7 +38,7 @@ topology = variant1
 configuration = single_switch
 
 configurations = {
-    # 'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
+    'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
     'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
     'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
     'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
@@ -95,8 +98,6 @@ def netlist_configuration_to_oop(configurations_dictionary):
                     else:
                         sorted_nodes_list.append(confi.get_node(n))
 
-                # confi.nodes.extend(sorted_nodes_list.copy())
-
                 confi.nodes.extend(sorted_nodes_list)
                 confi.nodes = list(set(confi.nodes))
 
@@ -106,7 +107,7 @@ def netlist_configuration_to_oop(configurations_dictionary):
                 add_connections_to_nodes(element, sorted_nodes_list)
                 sorted_nodes_list = []
 
-        configurations_objects.append(confi)
+        # configurations_objects.append(confi)
 
 
 def netlist_topology_to_oop(topology_netlist: str):
@@ -117,16 +118,17 @@ def netlist_topology_to_oop(topology_netlist: str):
         # element name
         element = i.split(' ')[0]
 
-        # string of the nodes
-        nodes_as_string = i.split(' ')[1:]
+        if element:
+            # string of the nodes
+            nodes_as_string = i.split(' ')[1:]
 
-        # list of nodes
-        nodes_list = create_topology_nodes(nodes_as_string)
+            # list of nodes
+            nodes_list = create_topology_nodes(nodes_as_string)
 
-        # create a new element with its nodes
-        element = TopologyElement(element, nodes_list)
+            # create a new element with its nodes
+            element = TopologyElement(element, nodes_list)
 
-        add_connections_to_nodes(element, nodes_list)
+            add_connections_to_nodes(element, nodes_list)
 
 
 netlist_topology_to_oop(topology)
@@ -180,32 +182,6 @@ def netlist_to_oop(t: str, topology_type: bool):
 
 # netlist_to_oop(topology, True)
 # netlist_to_oop(configuration, False)
-
-
-# {'n0': [3, v, 6, 0, u], 'n1': [1, 3, v, 6], 'n2': [2, 4, 5, 7], 'n3': [3, v, 6]}
-def sub_graph_matches(confi):
-    topology_nodes = TopologyNode.nodes.copy()
-    configuration_nodes = confi.nodes.copy()
-
-    similar_nodes = {}
-    for i in configuration_nodes:
-        similar_nodes.update({i.name: []})
-
-    for topo_node in topology_nodes:
-        for confi_node in configuration_nodes:
-            if set(confi_node.terminals) <= set(topo_node.terminals):
-                similar_nodes[confi_node.name].append(topo_node)
-
-    return similar_nodes
-
-
-def dfs(node, visited):  # depth First Search
-
-    if node not in visited:
-        visited.append(node)
-        for connection in node.connections:
-            dfs(connection, visited)
-    return visited
 
 
 def get_next_nodes(node: Node):
@@ -383,22 +359,71 @@ def possible_layouts(configurations_nodes):
 
 
 def taken_nodes(layouts_tuple):
-    # return list(set([j[0] for layouts in layouts_tuple for j in layouts]))
     return list(set([j[0] for j in layouts_tuple]))
 
 
+def heap_permutation(elements_to_permute, size):
+    if size == 1:
+        yield elements_to_permute
+
+    for i in range(size):
+        yield from heap_permutation(elements_to_permute.copy(), size - 1)
+
+        if size & 1:
+            elements_to_permute[0], elements_to_permute[size - 1] \
+                = elements_to_permute[size - 1], elements_to_permute[0]
+        else:
+            elements_to_permute[i], elements_to_permute[size - 1] \
+                = elements_to_permute[size - 1], elements_to_permute[i]
+
+
+def all_perms(elements):
+    if len(elements) <= 1:
+        yield elements
+    else:
+        for perm in all_perms(elements[1:]):
+            for i in range(len(elements)):
+                yield perm[:i] + elements[0:1] + perm[i:]
+
+
 all_possibilities = []
-for conf in configurations_objects:
+for conf in ConfigurationNode.configurations_objects:
     results = possible_layouts(conf.nodes)
-    # pprint.pprint(results)
     all_possibilities.extend(results)
 
-pprint.pprint(all_possibilities)
+# pprint.pprint(all_possibilities)
 
-generated_permutations = []
+permutations = list(all_perms(all_possibilities))
 
-# x1 = [(topology_1, half_bridge_n1),
-#   (topology_2, half_bridge_n2),
-#   (topology_3, half_bridge_n3),
-#   (topology_4, half_bridge_n4),
-#   (topology_v, half_bridge_n5)]
+
+def accepted_permutations(perms):
+    combinations = []
+    for perm in perms:
+        modules = []
+        topology_elements = TopologyElement.elements.copy()
+        for module in perm:
+            if topology_elements:
+                # nodes on the topology
+                nodes = taken_nodes(module)
+
+                # topology elements on these nodes
+                elements = list(get_elements_on_path(nodes))
+
+                # elements of the module is a subset of the remaining elements
+                if set(elements).issubset(set(topology_elements)):
+
+                    remaining_elements_length = len(topology_elements)
+                    topology_elements = [i for i in topology_elements if i not in elements]
+
+                    if remaining_elements_length > len(topology_elements):
+                        modules.append(module)
+        if modules:
+            if modules not in combinations:
+                combinations.append(modules)
+
+    return combinations
+
+
+print(len(accepted_permutations(permutations[0:30000])))
+
+# print("--- %s seconds ---" % (time.time() - start_time))

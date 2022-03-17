@@ -4,11 +4,12 @@ from Types import Types
 
 
 class ConfigurationNode(Node):
-    # nodes = []
+    configurations_objects = []
 
     def __init__(self, name):
         super().__init__(name)
         self.nodes = []
+        ConfigurationNode.configurations_objects.append(self)
         # self.nodes.append(self)
 
     def add_connection(self, element: Element, terminal: Types):
