@@ -135,55 +135,6 @@ netlist_topology_to_oop(topology)
 netlist_configuration_to_oop(configurations)
 
 
-def netlist_to_oop(t: str, topology_type: bool):
-    if topology_type:
-        node_type = TopologyNode
-        element_type = TopologyElement
-    else:
-        node_type = ConfigurationNode
-        element_type = ConfigurationElement
-        ConfigurationNode.nodes = []
-
-    parts = t.split(';')
-    for i in parts:
-        i = i.lstrip()
-
-        # element name
-        element = i.split(' ')[0]
-
-        # string of the nodes
-        nodes_str = i.split(' ')[1:]
-
-        # list of nodes
-        nodes_list = []
-
-        for n in nodes_str:
-
-            if n not in node_type.nodes:
-                nodes_list.append(node_type(n))
-
-            else:
-
-                nodes_list.append(node_type.get_node(n))
-
-        # create a new element with its nodes
-        element = element_type(element, nodes_list)
-
-        # append the element of the list of connections of each node
-        if element.typ is Types.DIODE:
-            nodes_list[0].add_connection(element, Types.DIODE_ANODE)
-            nodes_list[1].add_connection(element, Types.DIODE_CATHODE)
-
-        if element.typ is Types.IGBT:
-            nodes_list[0].add_connection(element, Types.IGBT_COLLECTOR)
-            nodes_list[1].add_connection(element, Types.IGBT_GATE)
-            nodes_list[2].add_connection(element, Types.IGBT_EMITTER)
-
-
-# netlist_to_oop(topology, True)
-# netlist_to_oop(configuration, False)
-
-
 def get_next_nodes(node: Node):
     next_nodes = set()
     for c in node.connections:
@@ -396,34 +347,48 @@ for conf in ConfigurationNode.configurations_objects:
 permutations = list(all_perms(all_possibilities))
 
 
-def accepted_permutations(perms):
+# permutations = list(heap_permutation(all_possibilities, len(all_possibilities)))
+
+
+def accepted_permutations(perms, left_component=0):
     combinations = []
     for perm in perms:
-        modules = []
+        modules = set()
         topology_elements = TopologyElement.elements.copy()
         for module in perm:
             if topology_elements:
-                # nodes on the topology
+
+                # topology nodes in the module
                 nodes = taken_nodes(module)
 
                 # topology elements on these nodes
                 elements = list(get_elements_on_path(nodes))
 
-                # elements of the module is a subset of the remaining elements
+                # elements of the module are a subset of (exist in) the remaining elements
                 if set(elements).issubset(set(topology_elements)):
 
                     remaining_elements_length = len(topology_elements)
+
+                    # remove used elements from the topology
                     topology_elements = [i for i in topology_elements if i not in elements]
 
+                    # check if the module has been used
+                    # by checking if elements have been remove
+                    # from the copied topology elements list
                     if remaining_elements_length > len(topology_elements):
-                        modules.append(module)
+                        modules.add(tuple(module))
         if modules:
-            if modules not in combinations:
-                combinations.append(modules)
+            # how many elements allowed not be in modules combination
+            if len(topology_elements) <= left_component:
+                if modules not in combinations:
+                    combinations.append(modules)
 
     return combinations
 
 
-print(len(accepted_permutations(permutations[0:30000])))
+# print(len(permutations))
+final_combinations = accepted_permutations(permutations)
+print(len(final_combinations))
+pprint.pprint(final_combinations)
 
-# print("--- %s seconds ---" % (time.time() - start_time))
+print("--- %s seconds ---" % (time.time() - start_time))

@@ -110,4 +110,3 @@ def heap_permutation(elements_to_permute, size):
                 = elements_to_permute[size - 1], elements_to_permute[i]
 
 
-print([1, 2] in [1, 2, 3])
