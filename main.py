@@ -1,6 +1,7 @@
 import pprint
 import time
 
+from Configuration import Configuration
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
 from Node import Node
@@ -14,7 +15,7 @@ b6_bridge = "igbt1 1 2 u; diode1 u 1; " \
             "igbt2 1 3 v; diode2 v 1;" \
             "igbt3 1 4 w; diode3 w 1;" \
             "igbt4 u 5 0; diode4 0 u;" \
-            "igbt5 v 6 0; diode5 0 v; " \
+            "igbt5 v 6 0; diode5 0 v;" \
             "igbt6 w 7 0; diode6 0 w;"
 
 variant1 = 'igbt1 1 2 3;diode1 3 1;' \
@@ -25,17 +26,12 @@ variant1 = 'igbt1 1 2 3;diode1 3 1;' \
 
 variant3 = 'igbt1 1 2 v;diode1 v 1;igbt2 v 3 0;diode2 0 v;igbt3 v 4 5;diode3 5 u;igbt4 u 6 5;diode4 5 v;'
 variant4 = 'igbt1 1 2 3;diode1 3 1;igbt2 3 4 0;diode2 0 3;diode3 5 3;'
-test_topo = 'igbt1 1 2 3;diode1 3 1;' \
-            'igbt2 3 4 v;diode2 v 3;' \
-            'igbt3 v 5 6;diode4 6 v;' \
-            'diode5 u 3;diode6 6 u;'
-single_switch = 'diode n3 n1;igbt n1 n2 n3;'
-chopper2 = 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3'
-chopper1 = 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0'
-test_configuration = 'diode1 n1 n2;igbt1 n2 n3 n4;'
+h_bridge = "igbt1 1 2 u; diode1 u 1; " \
+           "igbt2 1 3 v; diode2 v 1;" \
+           "igbt4 u 5 0; diode4 0 u;" \
+           "igbt5 v 6 0; diode5 0 v;"
 
-topology = variant1
-configuration = single_switch
+topology = variant3
 
 configurations = {
     'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
@@ -43,7 +39,6 @@ configurations = {
     'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
     'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
 }
-configurations_objects = []
 
 
 def add_connections_to_nodes(element, nodes: list):
@@ -73,7 +68,7 @@ def create_topology_nodes(nodes_as_string):
 
 def netlist_configuration_to_oop(configurations_dictionary):
     for key in configurations_dictionary.keys():
-        confi = ConfigurationNode(key)
+        confi = Configuration(key)
         value = configurations_dictionary[key]
         items = value.split(';')
 
@@ -93,10 +88,10 @@ def netlist_configuration_to_oop(configurations_dictionary):
                     n = str(key) + '_' + j
 
                     if n not in confi.nodes:
-                        new_node = ConfigurationNode(n)
+                        new_node = ConfigurationNode(n, confi)
                         sorted_nodes_list.append(new_node)
                     else:
-                        sorted_nodes_list.append(confi.get_node(n))
+                        sorted_nodes_list.append(Configuration.get_node(n))
 
                 confi.nodes.extend(sorted_nodes_list)
                 confi.nodes = list(set(confi.nodes))
@@ -309,23 +304,12 @@ def possible_layouts(configurations_nodes):
     # return accepted_routes, 'Number of used modules: ' + str(len(accepted_routes))
 
 
-def taken_nodes(layouts_tuple):
+def taken_topology_nodes(layouts_tuple):
     return list(set([j[0] for j in layouts_tuple]))
 
 
-def heap_permutation(elements_to_permute, size):
-    if size == 1:
-        yield elements_to_permute
-
-    for i in range(size):
-        yield from heap_permutation(elements_to_permute.copy(), size - 1)
-
-        if size & 1:
-            elements_to_permute[0], elements_to_permute[size - 1] \
-                = elements_to_permute[size - 1], elements_to_permute[0]
-        else:
-            elements_to_permute[i], elements_to_permute[size - 1] \
-                = elements_to_permute[size - 1], elements_to_permute[i]
+def taken_configuration_nodes(layouts_tuple):
+    return list(set([j[1] for j in layouts_tuple]))
 
 
 def all_perms(elements):
@@ -338,28 +322,30 @@ def all_perms(elements):
 
 
 all_possibilities = []
-for conf in ConfigurationNode.configurations_objects:
+for conf in Configuration.configurations_objects:
     results = possible_layouts(conf.nodes)
     all_possibilities.extend(results)
 
+
 # pprint.pprint(all_possibilities)
 
-permutations = list(all_perms(all_possibilities))
 
-
-# permutations = list(heap_permutation(all_possibilities, len(all_possibilities)))
-
+# permutations = list(all_perms(all_possibilities))
+# generated_permutations = []
 
 def accepted_permutations(perms, left_component=0):
     combinations = []
+
     for perm in perms:
+
         modules = set()
         topology_elements = TopologyElement.elements.copy()
+
         for module in perm:
             if topology_elements:
 
                 # topology nodes in the module
-                nodes = taken_nodes(module)
+                nodes = taken_topology_nodes(module)
 
                 # topology elements on these nodes
                 elements = list(get_elements_on_path(nodes))
@@ -386,9 +372,80 @@ def accepted_permutations(perms, left_component=0):
     return combinations
 
 
+# permutations = []
+x = []
+
+
+def simple_permutation(layouts_to_permute, topology_elements, current_permutation=None):
+    current_permutation = [] if not current_permutation else current_permutation
+    if layouts_to_permute:
+        for module in layouts_to_permute:
+
+            if topology_elements:
+
+                # topology nodes in the module
+                nodes = taken_topology_nodes(module)
+
+                # topology elements on these nodes
+                corresponding_elements = list(get_elements_on_path(nodes))
+
+                # elements of the module are a subset of (exist in) the remaining elements
+                if set(corresponding_elements).issubset(set(topology_elements)):
+
+                    remaining_elements_length = len(topology_elements)
+
+                    # remove used elements from the topology
+                    topology_elements = [i for i in topology_elements if i not in corresponding_elements]
+
+                    # check if the module has been used
+                    # by checking if elements have been remove
+                    # from the copied topology elements list
+                    if remaining_elements_length > len(topology_elements):
+                        current_permutation.append(module)
+                        next_permutation = current_permutation
+                        remaining_elements = layouts_to_permute.copy()
+                        remaining_elements.remove(module)
+
+                        yield from simple_permutation(layouts_to_permute=remaining_elements,
+                                                      topology_elements=topology_elements,
+                                                      current_permutation=next_permutation)
+
+                        next_permutation.pop()
+                        topology_elements.extend(corresponding_elements)
+
+            else:
+                # topology_elements = TopologyElement.elements.copy()
+                x.append(current_permutation.copy())
+                y = x
+                yield current_permutation.copy()
+
+
+permutations = list(simple_permutation(all_possibilities, TopologyElement.elements.copy()))
+
+
 # print(len(permutations))
-final_combinations = accepted_permutations(permutations)
-print(len(final_combinations))
-pprint.pprint(final_combinations)
+
+# pprint.pprint(permutations)
+
+def remove_duplication(perms):
+    combinations = []
+
+    for perm in perms:
+        modules = set()
+        for module in perm:
+            modules.add(tuple(module))
+        if modules not in combinations:
+            combinations.append(modules)
+
+    return combinations
+
+
+# pprint.pprint(permutations)
+# print(len(permutations))
+pprint.pprint(remove_duplication(permutations))
+print(len(remove_duplication(permutations)))
+# final_combinations = accepted_permutations(permutations)
+# pprint.pprint(final_combinations)
+# print(len(final_combinations))
 
 print("--- %s seconds ---" % (time.time() - start_time))

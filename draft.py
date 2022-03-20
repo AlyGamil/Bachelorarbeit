@@ -1,5 +1,5 @@
 import pprint
-from itertools import product
+
 
 # one = TopologyNode.get_node('1')
 # two = TopologyNode.get_node('2')
@@ -28,16 +28,7 @@ from itertools import product
 # n0 = ConfigurationNode.get_node('n0')
 # test = [u, drei, v, vier]
 # print(element_same_direction([zero, sieben], [n0, n3]))
-
-l1, l2 = [1, 2, 3], ['a', 'b']
-
-
-# output = list(product(l1, l2))
-
-
-def foo(*args):
-    output = list(product(*args))
-    return output
+import main
 
 
 def swap(seq, i, j):
@@ -55,6 +46,7 @@ def generate_permutations(seq, sequence_length, result_length):
                 swap(seq, 0, i)
             else:
                 swap(seq, c[i], i)
+
             yield seq[:result_length]
             c[i] += 1
             i = 0
@@ -72,6 +64,7 @@ def all_perms(elements):
     if len(elements) <= 1:
         yield elements
     else:
+
         for perm in all_perms(elements[1:]):
             for i in range(len(elements)):
                 yield perm[:i] + elements[0:1] + perm[i:]
@@ -84,6 +77,7 @@ def recursive_heaps_algorithm(elements_to_permute, length):
     if length == 1:
         generated_permutations.append(elements_to_permute)
     else:
+
         length -= 1
         recursive_heaps_algorithm(elements_to_permute.copy(), length)
         for i in range(length):
@@ -95,18 +89,23 @@ def recursive_heaps_algorithm(elements_to_permute, length):
             recursive_heaps_algorithm(elements_to_permute.copy(), length)
 
 
-def heap_permutation(elements_to_permute, size):
-    if size == 1:
-        yield elements_to_permute
+level = 0
 
-    for i in range(size):
-        yield from heap_permutation(elements_to_permute.copy(), size - 1)
 
-        if size & 1:
-            elements_to_permute[0], elements_to_permute[size - 1] \
-                = elements_to_permute[size - 1], elements_to_permute[0]
-        else:
-            elements_to_permute[i], elements_to_permute[size - 1] \
-                = elements_to_permute[size - 1], elements_to_permute[i]
+def simple_permutation(elements_to_permute, current_permutation=None):
+    current_permutation = [] if not current_permutation else current_permutation
+    if elements_to_permute:
+        for e in elements_to_permute:
+            current_permutation.append(e)
+            next_permutation = current_permutation
+            remaining_elements = elements_to_permute.copy()
+            remaining_elements.remove(e)
+            yield from simple_permutation(elements_to_permute=remaining_elements, current_permutation=next_permutation)
+            next_permutation.pop()
+    else:
+        yield current_permutation.copy()
 
+
+# print(list(simple_permutation([1, 2, 3])))
+print(len(list(simple_permutation(main.all_possibilities))))
 
