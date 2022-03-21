@@ -1,6 +1,5 @@
 import pprint
 
-
 # one = TopologyNode.get_node('1')
 # two = TopologyNode.get_node('2')
 # three = TopologyNode.get_node('3')
@@ -106,6 +105,4 @@ def simple_permutation(elements_to_permute, current_permutation=None):
         yield current_permutation.copy()
 
 
-# print(list(simple_permutation([1, 2, 3])))
-print(len(list(simple_permutation(main.all_possibilities))))
-
+recursive_heaps_algorithm([1, 2, 3], 3)

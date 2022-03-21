@@ -31,7 +31,7 @@ h_bridge = "igbt1 1 2 u; diode1 u 1; " \
            "igbt4 u 5 0; diode4 0 u;" \
            "igbt5 v 6 0; diode5 0 v;"
 
-topology = variant3
+topology = variant1
 
 configurations = {
     'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
@@ -332,6 +332,49 @@ for conf in Configuration.configurations_objects:
 
 # permutations = list(all_perms(all_possibilities))
 # generated_permutations = []
+def accept_permutation(perm):
+    topology_elements = TopologyElement.elements.copy()
+
+    for module in perm:
+        if topology_elements:
+
+            # topology nodes in the module
+            nodes = taken_topology_nodes(module)
+
+            # topology elements on these nodes
+            elements = list(get_elements_on_path(nodes))
+
+            # elements of the module are a subset of (exist in) the remaining elements
+            if set(elements).issubset(set(topology_elements)):
+                remaining_elements_length = len(topology_elements)
+
+                # remove used elements from the topology
+                topology_elements = [i for i in topology_elements if i not in elements]
+
+    return not topology_elements
+
+
+generated_permutations = []
+
+
+def recursive_heaps_algorithm(elements_to_permute, length):
+    if length == 1:
+        if accept_permutation(elements_to_permute):
+            generated_permutations.append(elements_to_permute)
+    else:
+
+        length -= 1
+        recursive_heaps_algorithm(elements_to_permute.copy(), length)
+        for i in range(length):
+            if length & 1:
+                elements_to_permute[0], elements_to_permute[length] \
+                    = elements_to_permute[length], elements_to_permute[0]
+            else:
+                elements_to_permute[i], elements_to_permute[length] \
+                    = elements_to_permute[length], elements_to_permute[i]
+
+            recursive_heaps_algorithm(elements_to_permute.copy(), length)
+
 
 def accepted_permutations(perms, left_component=0):
     combinations = []
@@ -372,10 +415,6 @@ def accepted_permutations(perms, left_component=0):
     return combinations
 
 
-# permutations = []
-x = []
-
-
 def simple_permutation(layouts_to_permute, topology_elements, current_permutation=None):
     current_permutation = [] if not current_permutation else current_permutation
     if layouts_to_permute:
@@ -414,18 +453,11 @@ def simple_permutation(layouts_to_permute, topology_elements, current_permutatio
                         topology_elements.extend(corresponding_elements)
 
             else:
-                # topology_elements = TopologyElement.elements.copy()
-                x.append(current_permutation.copy())
-                y = x
                 yield current_permutation.copy()
 
 
 permutations = list(simple_permutation(all_possibilities, TopologyElement.elements.copy()))
 
-
-# print(len(permutations))
-
-# pprint.pprint(permutations)
 
 def remove_duplication(perms):
     combinations = []
@@ -442,10 +474,9 @@ def remove_duplication(perms):
 
 # pprint.pprint(permutations)
 # print(len(permutations))
-pprint.pprint(remove_duplication(permutations))
-print(len(remove_duplication(permutations)))
+# pprint.pprint(remove_duplication(permutations))
+# print(len(remove_duplication(permutations)))
 # final_combinations = accepted_permutations(permutations)
 # pprint.pprint(final_combinations)
 # print(len(final_combinations))
-
 print("--- %s seconds ---" % (time.time() - start_time))
