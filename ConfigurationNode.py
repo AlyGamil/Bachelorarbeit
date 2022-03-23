@@ -10,7 +10,6 @@ class ConfigurationNode(Node):
         super().__init__(name)
         self.configuration = configuration
         configuration.nodes.append(self)
-        # self.nodes.append(self)
 
     def add_connection(self, element: Element, terminal: Types):
         self.connections.append(element)
