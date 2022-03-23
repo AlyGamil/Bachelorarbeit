@@ -329,45 +329,6 @@ for conf in Configuration.configurations_objects:
 # generated_permutations = []
 
 
-def accepted_permutations(perms, left_component=0):
-    combinations = []
-
-    for perm in perms:
-
-        modules = set()
-        topology_elements = TopologyElement.elements.copy()
-
-        for module in perm:
-            if topology_elements:
-
-                # topology nodes in the module
-                nodes = taken_topology_nodes(module)
-
-                # topology elements on these nodes
-                elements = list(get_elements_on_path(nodes))
-
-                # elements of the module are a subset of (exist in) the remaining elements
-                if set(elements).issubset(set(topology_elements)):
-
-                    remaining_elements_length = len(topology_elements)
-
-                    # remove used elements from the topology
-                    topology_elements = [i for i in topology_elements if i not in elements]
-
-                    # check if the module has been used
-                    # by checking if elements have been remove
-                    # from the copied topology elements list
-                    if remaining_elements_length > len(topology_elements):
-                        modules.add(tuple(module))
-        if modules:
-            # how many elements allowed not be in modules combination
-            if len(topology_elements) <= left_component:
-                if modules not in combinations:
-                    combinations.append(modules)
-
-    return combinations
-
-
 def combinations(layouts_to_permute, topology_elements, current_permutation=None):
     current_permutation = [] if not current_permutation else current_permutation
     if layouts_to_permute:
