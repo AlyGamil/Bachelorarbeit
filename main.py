@@ -39,7 +39,7 @@ h_bridge = "igbt1 1 2 u; diode1 u 1; " \
            "igbt4 u 5 0; diode4 0 u;" \
            "igbt5 v 6 0; diode5 0 v;"
 
-topology = variant4
+topology = variant1
 
 configurations = {
     'diode': 'diode n1 n2;',
@@ -149,10 +149,10 @@ def get_next_nodes(node: Node):
     return list(next_nodes)
 
 
-def all_paths(vertex, configuration):
+def all_paths(node, configuration):
     configuration_nodes = configuration.nodes
-    path = [vertex]  # path traversed so far
-    seen = {vertex}  # set of vertices in path
+    path = [node]  # path traversed so far
+    seen = {node}  # set of vertices in path
 
     def search():
         dead_end = True
@@ -171,14 +171,13 @@ def all_paths(vertex, configuration):
             if len(path) == len(configuration_nodes):
                 yield list(path)
 
-    if 'diode' in configuration.name or 'igbt' in configuration.name:
+    if 'diode' in configuration.name:
         # for diodes and transistors (single element)
-        next_nodes = get_next_nodes(vertex)
+        next_nodes = get_next_nodes(node)
         for next_node in next_nodes:
-            path.append(next_node)
-        yield path
-    else:
+            yield [node, next_node]
 
+    else:
         yield from search()
 
 
@@ -360,9 +359,14 @@ def all_possible_layouts():
 # pprint.pprint(all_possible_layouts())
 # print(len(all_possible_layouts()))
 
+def module_contain_one_element(configuration):
+    node = configuration[0]
+    element_node = node[1]
+    return 'diode' in element_node.name or 'igbt' in element_node.name or 'mosfet' in element_node.name
+
+
 def combinations(layouts_to_permute, topology_elements, current_permutation=None):
     current_permutation = [] if not current_permutation else current_permutation
-
     for module in layouts_to_permute:
 
         if topology_elements:
@@ -371,9 +375,10 @@ def combinations(layouts_to_permute, topology_elements, current_permutation=None
             nodes = taken_topology_nodes(module)
 
             # topology elements on these nodes
-            # todo differentiate between elements and modules
-            # corresponding_elements = list(get_elements_on_path(nodes))
-            corresponding_elements = list(get_corresponding_elements(nodes))
+            if module_contain_one_element(module):
+                corresponding_elements = list(get_corresponding_elements(nodes))
+            else:
+                corresponding_elements = list(get_elements_on_path(nodes))
 
             # elements of the module are a subset of (exist in) the remaining elements
             if set(corresponding_elements).issubset(set(topology_elements)):
@@ -527,10 +532,6 @@ def bfs(visited, node):  # function for BFS
             if neighbour not in visited:
                 visited.append(neighbour)
                 queue.append(neighbour)
-
-
-def foo(vertex):
-    center_node = f'{topology=}'.split('=')[0] + '_' + vertex
 
     # for combination in Combination.combinations:
     # connected_modules = list(combination.get_connected_modules_by_node(center_node))
