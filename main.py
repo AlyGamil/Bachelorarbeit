@@ -1,9 +1,12 @@
 import pprint
 import time
 
+from Combination import Combination
+from CombinationNode import CombinationNode
 from Configuration import Configuration
 from ConfigurationElement import ConfigurationElement
 from ConfigurationNode import ConfigurationNode
+from Module import Module
 from Node import Node
 from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
@@ -36,9 +39,11 @@ h_bridge = "igbt1 1 2 u; diode1 u 1; " \
            "igbt4 u 5 0; diode4 0 u;" \
            "igbt5 v 6 0; diode5 0 v;"
 
-topology = b6_bridge
+topology = variant4
 
 configurations = {
+    'diode': 'diode n1 n2;',
+    'igbt': 'igbt n1 n2 n3;',
     'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
     'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
     'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
@@ -62,7 +67,7 @@ def create_topology_nodes(nodes_as_string):
     nodes_list = []
     for i in nodes_as_string:
         n = f'{topology=}'.split('=')[0] + '_' + i
-
+        n = i
         if n not in TopologyNode.nodes:
             nodes_list.append(TopologyNode(n))
 
@@ -144,7 +149,8 @@ def get_next_nodes(node: Node):
     return list(next_nodes)
 
 
-def all_paths(vertex, configuration_nodes):
+def all_paths(vertex, configuration):
+    configuration_nodes = configuration.nodes
     path = [vertex]  # path traversed so far
     seen = {vertex}  # set of vertices in path
 
@@ -157,13 +163,23 @@ def all_paths(vertex, configuration_nodes):
                 seen.add(connection)
                 path.append(connection)
                 yield from search()
+                # if len(path) == len(configuration_nodes):
+                #     yield list(path)
                 path.pop()
                 seen.remove(connection)
         if dead_end:
             if len(path) == len(configuration_nodes):
                 yield list(path)
 
-    yield from search()
+    if 'diode' in configuration.name or 'igbt' in configuration.name:
+        # for diodes and transistors (single element)
+        next_nodes = get_next_nodes(vertex)
+        for next_node in next_nodes:
+            path.append(next_node)
+        yield path
+    else:
+
+        yield from search()
 
 
 def get_elements_on_path(topo_nodes):
@@ -173,6 +189,8 @@ def get_elements_on_path(topo_nodes):
     for node1 in topo_nodes:
         for node2 in topo_nodes:
             if node1 is not node2:
+                x = node2.connections
+                y = node1.connections
                 common_elements.update(set(node2.connections).intersection(node1.connections))
 
     if common_elements:
@@ -183,6 +201,15 @@ def get_elements_on_path(topo_nodes):
                 elements.append(element)
 
     return set(elements)
+
+
+def get_corresponding_elements(topo_nodes):
+    elements = []
+
+    for element in TopologyElement.elements:
+        if set(element.connections) == set(topo_nodes):
+            elements.append(element)
+    return elements
 
 
 def element_same_direction(topo_nodes: list, confi_nodes: list):
@@ -228,7 +255,8 @@ def compare_routes(topo_path: list, confi_path: list):
 
 def compare_paths(topo_path, confi_path):
     path = []
-
+    # print(topo_path)
+    # print(confi_path)
     for i in range(len(confi_path) - 1):
         if len(topo_path) >= len(confi_path):
 
@@ -237,14 +265,14 @@ def compare_paths(topo_path, confi_path):
             confi_node = confi_path[i]
             next_confi_node = confi_path[i + 1]
             if set(confi_node.terminals).issubset(set(topo_node.terminals)):
-                if set(next_confi_node.terminals).issubset(set(next_topo_node.terminals)):
 
-                    if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
-                        path.append((topo_node, confi_node))
+                if element_same_direction([topo_node, next_topo_node], [confi_node, next_confi_node]):
+                    path.append((topo_node, confi_node))
             else:
                 return
 
-    path.append((topo_path[-1], confi_path[-1]))
+    if set(confi_path[-1].terminals).issubset(set(topo_path[-1].terminals)):
+        path.append((topo_path[-1], confi_path[-1]))
 
     if len(path) == len(confi_path):
         return path
@@ -277,37 +305,6 @@ def route_split_single_switch(route):
     return False
 
 
-def possible_layouts(configurations_nodes):
-    routes = []
-    topo_paths = []
-    confi_paths = []
-    accepted_routes = []
-    for topo_node in TopologyNode.nodes:
-        topo_paths.extend(all_paths(topo_node, configurations_nodes))
-
-    for confi_node in configurations_nodes:
-        confi_paths.extend(all_paths(confi_node, configurations_nodes))
-
-    for topo_path in topo_paths:
-
-        for confi_path in confi_paths:
-
-            route = compare_paths(topo_path, confi_path)
-            # route = list(compare_routes(topo_path, confi_path))
-
-            if route and len(route) == len(confi_path):
-                route = set(route)
-
-                if route not in routes:
-                    routes.append(route)
-                    if not route_split_single_switch(route):
-                        route = list(route)
-                        route.sort(key=lambda tup: tup[1])
-                        accepted_routes.append(route)
-
-    return accepted_routes
-
-
 def taken_topology_nodes(layouts_tuple):
     return list(set([j[0] for j in layouts_tuple]))
 
@@ -316,74 +313,97 @@ def taken_configuration_nodes(layouts_tuple):
     return list(set([j[1] for j in layouts_tuple]))
 
 
-all_possibilities = []
-for conf in Configuration.configurations_objects:
-    results = possible_layouts(conf.nodes)
-    all_possibilities.extend(results)
+def possible_layouts(configuration):
+    configurations_nodes = configuration.nodes
+    routes = []
+    topo_paths = []
+    confi_paths = []
+    accepted_routes = []
+
+    for topo_node in TopologyNode.nodes:
+        topo_paths.extend(all_paths(topo_node, configuration))
+
+    for confi_node in configurations_nodes:
+        confi_paths.extend(all_paths(confi_node, configuration))
+
+    for topo_path in topo_paths:
+        for confi_path in confi_paths:
+
+            route = compare_paths(topo_path, confi_path)
+            # route = list(compare_routes(topo_path, confi_path))
+            if route and len(route) == len(confi_path):
+                route = set(route)
+
+                if route not in routes:
+                    routes.append(route)
+                    if 'diode' in configuration.name or 'igbt' in configuration.name:
+                        route = list(route)
+                        route.sort(key=lambda tup: tup[1])
+                        accepted_routes.append(route)
+                    elif not route_split_single_switch(route):
+                        route = list(route)
+                        route.sort(key=lambda tup: tup[1])
+                        accepted_routes.append(route)
+
+    return accepted_routes
 
 
-# pprint.pprint(all_possibilities)
+def all_possible_layouts():
+    all_possibilities = []
+    for conf in Configuration.configurations_objects:
+        results = possible_layouts(conf)
+        all_possibilities.extend(results)
+
+    return all_possibilities
 
 
-# permutations = list(all_perms(all_possibilities))
-# generated_permutations = []
-
+# pprint.pprint(all_possible_layouts())
+# print(len(all_possible_layouts()))
 
 def combinations(layouts_to_permute, topology_elements, current_permutation=None):
     current_permutation = [] if not current_permutation else current_permutation
-    if layouts_to_permute:
-        for module in layouts_to_permute:
 
-            if topology_elements:
+    for module in layouts_to_permute:
 
-                # topology nodes in the module
-                nodes = taken_topology_nodes(module)
+        if topology_elements:
 
-                # topology elements on these nodes
-                corresponding_elements = list(get_elements_on_path(nodes))
+            # topology nodes in the module
+            nodes = taken_topology_nodes(module)
 
-                # elements of the module are a subset of (exist in) the remaining elements
-                if set(corresponding_elements).issubset(set(topology_elements)):
+            # topology elements on these nodes
+            # todo differentiate between elements and modules
+            # corresponding_elements = list(get_elements_on_path(nodes))
+            corresponding_elements = list(get_corresponding_elements(nodes))
 
-                    remaining_elements_length = len(topology_elements)
+            # elements of the module are a subset of (exist in) the remaining elements
+            if set(corresponding_elements).issubset(set(topology_elements)):
 
-                    # remove used elements from the topology
-                    topology_elements = [i for i in topology_elements if i not in corresponding_elements]
+                remaining_elements_length = len(topology_elements)
 
-                    # check if the module has been used
-                    # by checking if elements have been remove
-                    # from the copied topology elements list
-                    if remaining_elements_length > len(topology_elements):
-                        current_permutation.append(module)
-                        next_permutation = current_permutation
-                        remaining_elements = layouts_to_permute.copy()
-                        remaining_elements.remove(module)
+                # remove used elements from the topology
+                topology_elements = [i for i in topology_elements if i not in corresponding_elements]
 
-                        yield from combinations(layouts_to_permute=remaining_elements,
-                                                topology_elements=topology_elements,
-                                                current_permutation=next_permutation)
+                # check if the module has been used
+                # by checking if elements have been remove
+                # from the copied topology elements list
+                if remaining_elements_length > len(topology_elements):
+                    current_permutation.append(module)
+                    next_permutation = current_permutation
+                    remaining_elements = layouts_to_permute.copy()
+                    remaining_elements.remove(module)
 
-                        next_permutation.pop()
-                        topology_elements.extend(corresponding_elements)
+                    yield from combinations(layouts_to_permute=remaining_elements,
+                                            topology_elements=topology_elements,
+                                            current_permutation=next_permutation)
 
-            else:
-                yield current_permutation.copy()
+                    next_permutation.pop()
+                    topology_elements.extend(corresponding_elements)
+
+        else:
+            yield current_permutation.copy()
 
 
-permutations = list(combinations(all_possibilities, TopologyElement.elements.copy()))
-
-
-def remove_duplication(perms):
-    final_combinations = []
-
-    for perm in perms:
-        modules = set()
-        for module in perm:
-            modules.add(tuple(module))
-        if modules not in final_combinations:
-            final_combinations.append(modules)
-
-    return final_combinations
+permutations = list(combinations(all_possible_layouts(), TopologyElement.elements.copy()))
 
 
 def sub_graph_matches():
@@ -404,8 +424,123 @@ def sub_graph_matches():
 
 
 # pprint.pprint(permutations)
-print(len(permutations))
+# print(len(permutations))
 
-# pprint.pprint(remove_duplication(permutations))
-# print(len(remove_duplication(permutations)))
+def remove_duplication(perms):
+    final_combinations = []
+
+    for perm in perms:
+        modules = set()
+        for module in perm:
+            modules.add(tuple(module))
+        if modules not in final_combinations:
+            final_combinations.append(modules)
+
+    return final_combinations
+
+
+pprint.pprint(remove_duplication(permutations))
+print(len(remove_duplication(permutations)))
+
+
+# pprint.pprint(sub_graph_matches())
+
+
+########################################################################
+
+def create_combinations_oop():
+    for combination in remove_duplication(permutations):
+        new_combination = Combination()
+        new_combination.nodes = [CombinationNode(i.name) for i in TopologyNode.nodes]
+        for module in combination:
+            paar = module[0]
+            confi_node = paar[1]
+            nodes_name = taken_topology_nodes(module)
+            module_nodes = []
+
+            for node in new_combination.nodes:
+                if node in nodes_name:
+                    module_nodes.append(node)
+
+            new_module = Module(confi_node.configuration, module_nodes, new_combination)
+            new_combination.modules.append(new_module)
+
+            for node in module_nodes:
+                node.connections.append(new_module)
+
+
+create_combinations_oop()
+
+
+def get_next_module(module):
+    next_modules = set()
+    for node in module.nodes:
+        connections = node.connections.copy()
+        connections.remove(module)
+        next_modules.update(connections)
+    return list(next_modules)
+
+
+def recursive(connected_modules):
+    if connected_modules:
+        if all(element == connected_modules[0] for element in connected_modules) and len(connected_modules) > 1:
+            pass
+
+
+def next_module(module: Module, vertex):
+    nodes = module.nodes.copy()
+    nodes.remove(vertex)
+    seen = set()
+    for node in nodes:
+        c = node.connections
+        c.remove(module)
+        seen.update(c)
+    return list(seen)
+
+
+def next_node_in_combinations(node: CombinationNode):
+    nodes = []
+    for c in node.connections:
+        nodes = c.nodes.copy()
+        nodes.remove(node)
+    return nodes
+
+
+def common_modules(node1: CombinationNode, node2: CombinationNode):
+    return set(node1.connections).intersection(set(node2.connections))
+
+
+visited = []  # List for visited nodes.
+queue = []  # Initialize a queue
+
+
+def bfs(visited, node):  # function for BFS
+    node = f'{topology=}'.split('=')[0] + '_' + node
+    center_node = Combination.combinations[0].get_node(node)
+    visited.append(center_node)
+    queue.append(center_node)
+
+    while queue:  # Creating loop to visit each node
+        n = queue.pop(0)
+        # print(n, next_node_in_combinations(n))
+        for neighbour in next_node_in_combinations(n):
+            if neighbour not in visited:
+                visited.append(neighbour)
+                queue.append(neighbour)
+
+
+def foo(vertex):
+    center_node = f'{topology=}'.split('=')[0] + '_' + vertex
+
+    # for combination in Combination.combinations:
+    # connected_modules = list(combination.get_connected_modules_by_node(center_node))
+    # for module1 in connected_modules:
+    #     next_module(module1, center_node)
+    # for module2 in connected_modules:
+    #     if module1.configuration == module2.configuration:
+    #         if module1 is not module2:
+    #             print(connected_modules)
+    # print(get_next_module(connected_modules[0]))
+
+
 print("--- %s seconds ---" % (time.time() - start_time))

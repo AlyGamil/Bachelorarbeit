@@ -1,4 +1,3 @@
-from Element import Element
 
 
 class Node:

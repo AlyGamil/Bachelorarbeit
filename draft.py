@@ -1,5 +1,6 @@
 import pprint
 
+
 # one = TopologyNode.get_node('1')
 # two = TopologyNode.get_node('2')
 # three = TopologyNode.get_node('3')
@@ -27,7 +28,6 @@ import pprint
 # n0 = ConfigurationNode.get_node('n0')
 # test = [u, drei, v, vier]
 # print(element_same_direction([zero, sieben], [n0, n3]))
-import main
 
 
 def swap(seq, i, j):
@@ -105,4 +105,34 @@ def simple_permutation(elements_to_permute, current_permutation=None):
         yield current_permutation.copy()
 
 
-recursive_heaps_algorithm([1, 2, 3], 3)
+graph = {
+    '5': ['3', '7'],
+    '3': ['2', '4'],
+    '7': ['8'],
+    '2': [],
+    '4': ['8'],
+    '8': []
+}
+
+visited = []  # List for visited nodes.
+queue = []  # Initialize a queue
+
+
+def bfs(visited, graph, node):  # function for BFS
+    visited.append(node)
+    queue.append(node)
+    x = visited
+    y = queue
+    while queue:  # Creating loop to visit each node
+        m = queue.pop(0)
+        print(m, end=" ")
+
+        for neighbour in graph[m]:
+            if neighbour not in visited:
+                visited.append(neighbour)
+                queue.append(neighbour)
+
+
+# Driver Code
+print("Following is the Breadth-First Search")
+bfs(visited, graph, '5')  # function calling
