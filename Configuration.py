@@ -5,6 +5,7 @@ class Configuration:
         self.name = name
         Configuration.configurations_objects.append(self)
         self.nodes = []
+        self.elements = []
 
     def __repr__(self):
         return self.name

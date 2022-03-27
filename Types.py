@@ -9,6 +9,7 @@ class Types(Enum):
     IGBT_COLLECTOR = 5
     IGBT_GATE = 6
     IGBT_EMITTER = 7
+    MOSFET = 8
 
     def __repr__(self):
         return self.name

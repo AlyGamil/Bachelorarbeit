@@ -39,18 +39,14 @@ h_bridge = "igbt1 1 2 u; diode1 u 1; " \
            "igbt2 1 3 v; diode2 v 1;" \
            "igbt4 u 5 0; diode4 0 u;" \
            "igbt5 v 6 0; diode5 0 v;"
-test = 'igbt2 3 4 v;diode2 v 3;' \
-       'igbt3 v 5 6;diode4 6 v;' \
-       'diode5 u 3;diode6 6 u;' \
-       'igbt1 1 2 3;diode1 3 1;'
-
-topology = variant1
+test = 'igbt1 1 2 u; diode1 u 1;'
+topology = variant6
 
 configurations = {
     # 'diode': 'diode n1 n2;',
-    'igbt': 'igbt n1 n2 n3;',
+    # 'igbt': 'igbt n1 n2 n3;',
     # 'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
-    # 'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
+    'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
     # 'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
     # 'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
 }
@@ -113,6 +109,9 @@ def netlist_configuration_to_oop(configurations_dictionary):
 
                 # create a new element with its nodes
                 element = ConfigurationElement(element, sorted_nodes_list)
+
+                # add element to his configuration
+                confi.elements.append(element)
 
                 add_connections_to_nodes(element, sorted_nodes_list)
                 sorted_nodes_list = []
@@ -205,12 +204,18 @@ def get_elements_on_path(nodes):
     return set(elements)
 
 
-def get_corresponding_elements(topo_nodes):
+def get_corresponding_elements(nodes):
     elements = []
 
-    for element in TopologyElement.elements:
-        if set(element.connections) == set(topo_nodes):
-            elements.append(element)
+    if isinstance(nodes[0], TopologyNode):
+        for element in TopologyElement.elements:
+            if set(element.connections) == set(nodes):
+                elements.append(element)
+
+    if isinstance(nodes[0], ConfigurationNode):
+        for element in ConfigurationElement.elements:
+            if set(element.connections) == set(nodes):
+                elements.append(element)
     return elements
 
 
@@ -268,9 +273,36 @@ def compare_routes(topo_path: list, confi_path: list):
     yield from search_tree()
 
 
+def compare_elements_layouts(topo_nodes, confi_nodes):
+    path = []
+    topo_element = get_corresponding_elements(topo_nodes)
+    confi_element = get_corresponding_elements(confi_nodes)
+
+    if topo_element and confi_element:
+        topo_element = topo_element[0]
+        confi_element = confi_element[0]
+
+        # determine the number of the terminals
+        length = 2 if topo_element.typ is Types.DIODE and confi_element.typ is Types.DIODE else 3
+        for j in range(length):  # collector -> gate -> emitter OR anode -> cathode
+
+            topo_terminal = topo_nodes[j].element_and_terminal[topo_element]
+            confi_terminal = confi_nodes[j].element_and_terminal[confi_element]
+            path.append((topo_nodes[j], confi_nodes[j]))
+
+            # do they have the same type of terminals
+            if not topo_terminal == confi_terminal:
+                return False
+
+        return path
+
+    return False
+
+
 def compare_paths(topo_path, confi_path):
     path = []
-
+    x = topo_path
+    y = confi_path
     for i in range(len(confi_path) - 1):
         if len(topo_path) >= len(confi_path):
 
@@ -328,7 +360,9 @@ def taken_configuration_nodes(layouts_tuple):
 
 
 def possible_layouts(configuration):
-    configurations_nodes = configuration.nodes
+    one_element_configuration = 'diode' in configuration.name \
+                                or 'igbt' in configuration.name \
+                                or 'mosfet' in configuration.name
     routes = []
     topo_paths = []
     confi_paths = []
@@ -337,21 +371,25 @@ def possible_layouts(configuration):
     for topo_node in TopologyNode.nodes:
         topo_paths.extend(all_paths(topo_node, configuration))
 
-    for confi_node in configurations_nodes:
+    for confi_node in configuration.nodes:
         confi_paths.extend(all_paths(confi_node, configuration))
 
     for topo_path in topo_paths:
         for confi_path in confi_paths:
-
-            route = compare_paths(topo_path, confi_path)
+            if one_element_configuration:
+                route = compare_elements_layouts(topo_path, confi_path)
+            else:
+                route = compare_paths(topo_path, confi_path)
             # route = list(compare_routes(topo_path, confi_path))
             if route and len(route) == len(confi_path):
                 route = set(route)
 
                 if route not in routes:
+                    y = topo_path
+                    z = confi_path
                     x = compare_paths(topo_path, confi_path)
                     routes.append(route)
-                    if 'diode' in configuration.name or 'igbt' in configuration.name:
+                    if one_element_configuration:
                         route = list(route)
                         route.sort(key=lambda tup: tup[1])
                         accepted_routes.append(route)
@@ -396,10 +434,9 @@ def remove_layouts_duplications(layouts):
 #     for n in c.nodes:
 #         print(n, n.connections)
 
-
-def module_contain_one_element(configuration):
-    node = configuration[0]
-    element_node = node[1]
+def module_contain_one_element(layout):
+    node_couple = layout[0]
+    element_node = node_couple[1]
     return 'diode' in element_node.name or 'igbt' in element_node.name or 'mosfet' in element_node.name
 
 
