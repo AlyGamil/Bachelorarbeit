@@ -1,5 +1,5 @@
+import itertools
 import pprint
-
 
 # one = TopologyNode.get_node('1')
 # two = TopologyNode.get_node('2')
@@ -28,6 +28,7 @@ import pprint
 # n0 = ConfigurationNode.get_node('n0')
 # test = [u, drei, v, vier]
 # print(element_same_direction([zero, sieben], [n0, n3]))
+from fontTools.misc.py23 import xrange
 
 
 def swap(seq, i, j):
@@ -133,6 +134,14 @@ def bfs(visited, graph, node):  # function for BFS
                 queue.append(neighbour)
 
 
-# Driver Code
-print("Following is the Breadth-First Search")
-bfs(visited, graph, '5')  # function calling
+def get_combinations(layouts):
+    results = []
+    for i in range(1, len(layouts) + 1):
+        results.extend(list(itertools.combinations(layouts, i)))
+    return results
+
+
+x = [1, 2, 3]
+y = [1, 2, 3]
+print((set(x), set(y)))
+
