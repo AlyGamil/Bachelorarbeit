@@ -14,6 +14,8 @@ class Element:
             self.typ = Types.DIODE
         if 'IGBT' in self.name.upper():
             self.typ = Types.IGBT
+        if 'MOSFET' in self.name.upper():
+            self.typ = Types.MOSFET
 
     def __repr__(self):
         return self.name

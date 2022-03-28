@@ -13,7 +13,7 @@ from TopologyElement import TopologyElement
 from TopologyNode import TopologyNode
 from Types import Types
 
-# start_time = time.time()
+start_time = time.time()
 
 b6_bridge = "igbt1 1 2 u; diode1 u 1; " \
             "igbt2 1 3 v; diode2 v 1;" \
@@ -39,16 +39,17 @@ h_bridge = "igbt1 1 2 u; diode1 u 1; " \
            "igbt2 1 3 v; diode2 v 1;" \
            "igbt4 u 5 0; diode4 0 u;" \
            "igbt5 v 6 0; diode5 0 v;"
-test = 'igbt1 1 2 u; diode1 u 1;'
-topology = variant6
+# test = 'diode1 1 2; diode2 2 3; diode3 2 3;'
+test = 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;'
+topology = variant4
 
 configurations = {
-    # 'diode': 'diode n1 n2;',
-    # 'igbt': 'igbt n1 n2 n3;',
-    # 'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
+    'diode': 'diode n1 n2;',
+    'igbt': 'igbt n1 n2 n3;',
+    'single_switch': 'diode n3 n1;igbt n1 n2 n3;',
     'half_bridge': 'igbt1 n1 n2 n3; diode1 n3 n1; diode2 n5 n3; igbt2 n3 n4 n5;',
-    # 'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
-    # 'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
+    'chopper1': 'diode1 n0 n2;diode2 n2 n1;igbt n2 n3 n0',
+    'chopper2': 'diode1 n3 n1;diode2 n0 n3;igbt n1 n2 n3',
 }
 
 
@@ -219,39 +220,64 @@ def get_corresponding_elements(nodes):
     return elements
 
 
+def compare_elements_layouts(topo_nodes, confi_nodes):
+    path = []
+    topo_elements = get_corresponding_elements(topo_nodes)
+    confi_elements = get_corresponding_elements(confi_nodes)
+
+    if topo_elements and confi_elements:
+
+        topo_element = topo_elements[0]
+        confi_element = confi_elements[0]
+
+        # determine the number of the terminals
+        length = 2 if topo_element.typ is Types.DIODE and confi_element.typ is Types.DIODE else 3
+        for j in range(length):  # collector -> gate -> emitter OR anode -> cathode
+
+            topo_terminal = topo_nodes[j].element_and_terminal[topo_element]
+            confi_terminal = confi_nodes[j].element_and_terminal[confi_element]
+            path.append((topo_nodes[j], confi_nodes[j]))
+
+            # do they have the same type of terminals
+            if not topo_terminal == confi_terminal:
+                return False
+
+        return path
+
+    return False
+
+
 def elements_have_same_direction(topo_nodes: list, confi_nodes: list):
-    # transistors have three terminals and the method check only two nodes
-    transistor_configuration = 'igbt' in confi_nodes[0].configuration.name \
-                               or 'mosfet' in confi_nodes[0].configuration.name
-    # common element
-    topo_element = list(get_elements_on_path(topo_nodes))
-    confi_element = list(get_elements_on_path(confi_nodes))
-
-    if transistor_configuration:
-        if topo_element:
-            # if the 2 nodes are a single switch terminals
-            # a diode will be return in topo_element
-            # and the confi_element will be empty
-            # so the diode will be removed to return true
-            # (no common elements between the two nodes)
-            if topo_element[0].typ == Types.DIODE:
-                topo_element.remove(topo_element[0])
-
-    # if common element exists check direction
-    if topo_element and confi_element:
-
-        # check if both the topology element terminal and the configuration element terminal are the same
-        topo_terminal = topo_nodes[0].element_and_terminal[topo_element[0]]
-        confi_terminal = confi_nodes[0].element_and_terminal[confi_element[0]]
-
-        if topo_terminal == confi_terminal:
-            return True
-
-    # if there is no connection between the nodes return true
-    elif len(topo_element) == 0 and len(confi_element) == 0:
+    if compare_elements_layouts(topo_nodes, confi_nodes):
         return True
 
     else:
+        topo_element = confi_element = None
+
+        for element in TopologyElement.elements:
+            if element.typ is not Types.DIODE:
+                connections = element.connections
+                intersections = set(topo_nodes).intersection(set(connections))
+                if len(intersections) >= 2:
+                    topo_element = element
+                    break
+
+        for element in ConfigurationElement.elements:
+            if element.typ is not Types.DIODE:
+                connections = element.connections
+                intersections = set(confi_nodes).intersection(set(connections))
+                if len(intersections) >= 2:
+                    confi_element = element
+                    break
+
+        if topo_element and confi_element:
+            topo_terminal1 = topo_nodes[0].element_and_terminal[topo_element]
+            topo_terminal2 = topo_nodes[1].element_and_terminal[topo_element]
+            confi_terminal1 = confi_nodes[0].element_and_terminal[confi_element]
+            confi_terminal2 = confi_nodes[1].element_and_terminal[confi_element]
+
+            return topo_terminal1 == confi_terminal1 and topo_terminal2 == confi_terminal2
+
         return False
 
 
@@ -273,36 +299,8 @@ def compare_routes(topo_path: list, confi_path: list):
     yield from search_tree()
 
 
-def compare_elements_layouts(topo_nodes, confi_nodes):
-    path = []
-    topo_element = get_corresponding_elements(topo_nodes)
-    confi_element = get_corresponding_elements(confi_nodes)
-
-    if topo_element and confi_element:
-        topo_element = topo_element[0]
-        confi_element = confi_element[0]
-
-        # determine the number of the terminals
-        length = 2 if topo_element.typ is Types.DIODE and confi_element.typ is Types.DIODE else 3
-        for j in range(length):  # collector -> gate -> emitter OR anode -> cathode
-
-            topo_terminal = topo_nodes[j].element_and_terminal[topo_element]
-            confi_terminal = confi_nodes[j].element_and_terminal[confi_element]
-            path.append((topo_nodes[j], confi_nodes[j]))
-
-            # do they have the same type of terminals
-            if not topo_terminal == confi_terminal:
-                return False
-
-        return path
-
-    return False
-
-
 def compare_paths(topo_path, confi_path):
     path = []
-    x = topo_path
-    y = confi_path
     for i in range(len(confi_path) - 1):
         if len(topo_path) >= len(confi_path):
 
@@ -380,14 +378,11 @@ def possible_layouts(configuration):
                 route = compare_elements_layouts(topo_path, confi_path)
             else:
                 route = compare_paths(topo_path, confi_path)
-            # route = list(compare_routes(topo_path, confi_path))
+                # route = list(compare_routes(topo_path, confi_path))
             if route and len(route) == len(confi_path):
                 route = set(route)
 
                 if route not in routes:
-                    y = topo_path
-                    z = confi_path
-                    x = compare_paths(topo_path, confi_path)
                     routes.append(route)
                     if one_element_configuration:
                         route = list(route)
@@ -410,29 +405,10 @@ def all_possible_layouts():
     return all_possibilities
 
 
-pprint.pprint(all_possible_layouts())
-print(len(all_possible_layouts()))
+layouts = all_possible_layouts()
+# pprint.pprint(all_possible_layouts())
+print(len(layouts))
 
-
-def remove_layouts_duplications(layouts):
-    checked = []
-    output = []
-    for layout in layouts:
-        configuration_nodes = taken_configuration_nodes(layout)
-        topology_nodes = taken_topology_nodes(layout)
-        tup = (set(topology_nodes), set(configuration_nodes))
-
-        if tup not in checked:
-            output.append(layout)
-
-        checked.append(tup)
-
-    return output
-
-
-# for c in Configuration.configurations_objects:
-#     for n in c.nodes:
-#         print(n, n.connections)
 
 def module_contain_one_element(layout):
     node_couple = layout[0]
@@ -440,48 +416,53 @@ def module_contain_one_element(layout):
     return 'diode' in element_node.name or 'igbt' in element_node.name or 'mosfet' in element_node.name
 
 
+# if len(topology_elements) == 0:
+#     yield current_permutation.copy()
 def modules_combinations(layouts_to_permute, topology_elements, current_permutation=None):
     current_permutation = [] if not current_permutation else current_permutation
     for module in layouts_to_permute:
 
-        if topology_elements:
+        # if topology_elements:
 
-            # topology nodes in the module
-            nodes = taken_topology_nodes(module)
+        # topology nodes in the module
+        nodes = taken_topology_nodes(module)
 
-            # topology elements on these nodes
-            if module_contain_one_element(module):
-                corresponding_elements = list(get_corresponding_elements(nodes))
-                continue
-            else:
-                corresponding_elements = list(get_elements_on_path(nodes))
-
-            # elements of the module are a subset of (exist in) the remaining elements
-            if set(corresponding_elements).issubset(set(topology_elements)):
-
-                remaining_elements_length = len(topology_elements)
-
-                # remove used elements from the topology
-                topology_elements = [i for i in topology_elements if i not in corresponding_elements]
-
-                # check if the module has been used
-                # by checking if elements have been remove
-                # from the copied topology elements list
-                if remaining_elements_length > len(topology_elements):
-                    current_permutation.append(module)
-                    next_permutation = current_permutation
-                    remaining_elements = layouts_to_permute.copy()
-                    remaining_elements.remove(module)
-
-                    yield from modules_combinations(layouts_to_permute=remaining_elements,
-                                                    topology_elements=topology_elements,
-                                                    current_permutation=next_permutation)
-
-                    next_permutation.pop()
-                    topology_elements.extend(corresponding_elements)
-
+        # topology elements on these nodes
+        if module_contain_one_element(module):
+            corresponding_elements = list(get_corresponding_elements(nodes))
+            # continue
         else:
-            yield current_permutation.copy()
+            corresponding_elements = list(get_elements_on_path(nodes))
+
+        # elements of the module are a subset of (exist in) the remaining elements
+        if set(corresponding_elements).issubset(set(topology_elements)):
+
+            remaining_elements_length = len(topology_elements)
+
+            # remove used elements from the topology
+            topology_elements = [i for i in topology_elements if i not in corresponding_elements]
+
+            # check if the module has been used
+            # by checking if elements have been remove
+            # from the copied topology elements list
+            if remaining_elements_length > len(topology_elements):
+                current_permutation.append(module)
+                next_permutation = current_permutation
+                remaining_elements = layouts_to_permute.copy()
+                remaining_elements.remove(module)
+
+                if len(topology_elements) == 0:
+                    yield current_permutation.copy()
+
+                yield from modules_combinations(layouts_to_permute=remaining_elements,
+                                                topology_elements=topology_elements,
+                                                current_permutation=next_permutation)
+
+                next_permutation.pop()
+                topology_elements.extend(corresponding_elements)
+
+    # else:
+    #     yield current_permutation.copy()
 
 
 def get_combinations(layouts):
@@ -533,12 +514,13 @@ def accepted_permutations(perms, left_component=0):
 # pprint.pprint(all_possible_layouts())
 
 # start_time = time.time()
-# modules_permutations = list(modules_combinations(all_possible_layouts(), TopologyElement.elements.copy()))
-# print(" combinations --- %s seconds ---" % (time.time() - start_time))
+permutations = list(modules_combinations(layouts, TopologyElement.elements.copy()))
 
 
-# pprint.pprint(permutations)
 # print(len(permutations))
+
+
+# print(" combinations --- %s seconds ---" % (time.time() - start_time))
 
 
 def remove_duplicated_modules_combinations(perms):
@@ -553,8 +535,9 @@ def remove_duplicated_modules_combinations(perms):
 
     return final_combinations
 
+
 # start_time = time.time()
-# final_permutation = remove_duplicated_modules_combinations(modules_permutations)
-# pprint.pprint(final_permutation)
-# print(len(final_permutation))
-# print(" remove_duplication --- %s seconds ---" % (time.time() - start_time))
+final_permutation = remove_duplicated_modules_combinations(permutations)
+pprint.pprint(final_permutation)
+print(len(final_permutation))
+print(" remove_duplication --- %s seconds ---" % (time.time() - start_time))
