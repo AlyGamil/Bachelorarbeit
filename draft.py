@@ -113,5 +113,7 @@ def get_combinations(layouts):
     return results
 
 
-output = list(simple_permutation([1, 2, 3, 4]))
-print(output)
+combinations = list(get_combinations([1, 2, 3, 4]))
+print(len(combinations))
+permutations = list(itertools.permutations([1, 2, 3, 4]))
+print(len(permutations))
