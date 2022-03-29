@@ -106,34 +106,6 @@ def simple_permutation(elements_to_permute, current_permutation=None):
         yield current_permutation.copy()
 
 
-graph = {
-    '5': ['3', '7'],
-    '3': ['2', '4'],
-    '7': ['8'],
-    '2': [],
-    '4': ['8'],
-    '8': []
-}
-
-visited = []  # List for visited nodes.
-queue = []  # Initialize a queue
-
-
-def bfs(visited, graph, node):  # function for BFS
-    visited.append(node)
-    queue.append(node)
-    x = visited
-    y = queue
-    while queue:  # Creating loop to visit each node
-        m = queue.pop(0)
-        print(m, end=" ")
-
-        for neighbour in graph[m]:
-            if neighbour not in visited:
-                visited.append(neighbour)
-                queue.append(neighbour)
-
-
 def get_combinations(layouts):
     results = []
     for i in range(1, len(layouts) + 1):
@@ -141,5 +113,5 @@ def get_combinations(layouts):
     return results
 
 
-x = ''
-print(isinstance(x, str))
+output = list(simple_permutation([1, 2, 3, 4]))
+print(output)
