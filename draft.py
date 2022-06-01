@@ -109,11 +109,25 @@ def simple_permutation(elements_to_permute, current_permutation=None):
 def get_combinations(layouts):
     results = []
     for i in range(1, len(layouts) + 1):
-        results.extend(list(itertools.combinations(layouts, i)))
+        results.extend(list(itertools.permutations(layouts, i)))
     return results
 
 
 combinations = list(get_combinations([1, 2, 3, 4]))
-print(len(combinations))
-permutations = list(itertools.permutations([1, 2, 3, 4]))
-print(len(permutations))
+
+
+def choose_iter(elements, length):
+    for i in range(len(elements)):
+        if length == 1:
+            yield elements[i],
+        else:
+            for _next in choose_iter(elements[i + 1:len(elements)], length - 1):
+                yield (elements[i],) + _next
+
+
+def choose(l, k):
+    return list(choose_iter(l, k))
+
+
+print(choose([1, 2, 3, 4], 3))
+print(list(simple_permutation([1, 2, 3, 4])))
